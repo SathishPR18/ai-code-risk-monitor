@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment secrets (CRITICAL: NEVER COMMIT THIS)
+.env
+.env.local
+*.pem
+
+# IDE / System
+.DS_Store
+*.log

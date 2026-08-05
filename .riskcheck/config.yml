@@ -1,0 +1,32 @@
+# .riskcheck/config.yml
+# AI Code Risk Monitor — optional per-repo configuration.
+#
+# This file is entirely optional. The tool works out of the box
+# with zero configuration using built-in Next.js rules.
+#
+# Uncomment and customize any of the sections below.
+
+# ── Extra sensitive paths ──────────────────────────────────────────────────────
+# Add your own paths that should be flagged as high-risk.
+# These are appended to the built-in list (not replacing it).
+#
+# sensitivePaths:
+#   - src/lib/admin.ts         # custom admin utility
+#   - src/app/admin            # admin routes
+#   - src/config/payments.ts   # payment config
+
+# ── Override signal weights ────────────────────────────────────────────────────
+# Adjust weight values for specific signals.
+# Full signal list: auth_config_changed, middleware_changed, server_action_changed,
+#   api_route_changed, removed_validation, data_fetching_changed,
+#   new_env_var_no_example, no_test_changed, pure_addition
+#
+# weights:
+#   no_test_changed: 25        # increase penalty for missing tests
+#   pure_addition: -30         # larger reduction for pure additions
+
+# ── Disable specific signals ───────────────────────────────────────────────────
+# Turn off signals that don't apply to your repo.
+#
+# disabledSignals:
+#   - no_test_changed          # e.g. if your team doesn't write tests yet
