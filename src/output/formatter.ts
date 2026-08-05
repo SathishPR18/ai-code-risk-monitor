@@ -26,7 +26,7 @@ const STATUS_STATE: Record<RiskTier, "success" | "failure" | "failure"> = {
  * Format the full PR comment markdown from scoring results.
  */
 export function formatComment(result: PRScoringResult, prTitle: string): string {
-  const { prTier, fileResults, totalFilesScored } = result;
+  const { prTier, totalFilesScored } = result;
   const emoji = TIER_EMOJI[prTier];
   const label = TIER_LABEL[prTier];
 
