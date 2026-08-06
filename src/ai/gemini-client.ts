@@ -62,7 +62,13 @@ export async function analyzePrWithGemini(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    const candidateModels = [
+      "gemini-1.5-flash-latest",
+      "gemini-2.0-flash-exp",
+      "gemini-1.5-pro",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
+    ];
     let rawResponseText: string | null = null;
 
     for (const model of candidateModels) {
