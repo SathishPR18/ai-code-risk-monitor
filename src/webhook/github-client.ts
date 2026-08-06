@@ -31,7 +31,7 @@ export interface StatusPayload {
 
 function getAppAuth() {
   const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_PRIVATE_KEY;
+  let privateKey = process.env.GITHUB_PRIVATE_KEY;
 
   if (!appId || !privateKey) {
     throw new Error(
@@ -39,7 +39,22 @@ function getAppAuth() {
     );
   }
 
-  // Replace escaped newlines in private key (common when storing in env vars)
+  // Trim surrounding whitespace & quotes if present
+  privateKey = privateKey.trim().replace(/^["']|["']$/g, "");
+
+  // If private key is base64 encoded, decode it first
+  if (!privateKey.includes("-----BEGIN") && !privateKey.includes("\\n")) {
+    try {
+      const decoded = Buffer.from(privateKey, "base64").toString("utf-8");
+      if (decoded.includes("-----BEGIN")) {
+        privateKey = decoded;
+      }
+    } catch {
+      // Not base64
+    }
+  }
+
+  // Replace escaped newlines (e.g. "\\n" -> "\n")
   const normalizedKey = privateKey.replace(/\\n/g, "\n");
 
   return createAppAuth({
