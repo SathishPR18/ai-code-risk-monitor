@@ -1,4 +1,5 @@
 import type { PRScoringResult, ScoringResult, RiskTier } from "../scoring/signals.js";
+import type { HybridScoringResult } from "../scoring/hybrid-engine.js";
 
 // ─── Tier Visuals ─────────────────────────────────────────────────────────────
 
@@ -23,12 +24,13 @@ const STATUS_STATE: Record<RiskTier, "success" | "failure" | "failure"> = {
 // ─── PR Comment ───────────────────────────────────────────────────────────────
 
 /**
- * Format the full PR comment markdown from scoring results.
+ * Format the full PR comment markdown from hybrid scoring results.
  */
-export function formatComment(result: PRScoringResult, prTitle: string): string {
+export function formatComment(result: HybridScoringResult | PRScoringResult, prTitle: string): string {
   const { prTier, totalFilesScored } = result;
   const emoji = TIER_EMOJI[prTier];
   const label = TIER_LABEL[prTier];
+  const hybridResult = "aiAnalysis" in result ? (result as HybridScoringResult) : null;
 
   const lines: string[] = [
     `## ${emoji} Risk Check: **${label}**`,
@@ -37,6 +39,33 @@ export function formatComment(result: PRScoringResult, prTitle: string): string 
     `> **Files scored:** ${totalFilesScored} | **Highest risk tier:** ${emoji} ${label}`,
     "",
   ];
+
+  // ── AI Summary Section ───────────────────────────────────────────────────
+  if (hybridResult?.aiAnalysis?.summary) {
+    lines.push(`> 🤖 **AI Summary:** ${hybridResult.aiAnalysis.summary}`);
+    lines.push("");
+  }
+
+  // ── Business Logic Audit Section ─────────────────────────────────────────
+  if (hybridResult?.aiAnalysis?.businessLogicAnalysis) {
+    const logic = hybridResult.aiAnalysis.businessLogicAnalysis;
+    const statusEmoji = logic.hasMismatch ? "⚠️" : "✅";
+    const statusText = logic.hasMismatch ? "**LOGIC MISMATCH / GAP DETECTED**" : "Intent Matches Implementation";
+
+    lines.push(`### 🤖 Business Logic & Intent Audit (${statusEmoji} ${statusText})`);
+    lines.push("");
+    lines.push(`> ${logic.explanation}`);
+    lines.push("");
+
+    if (logic.gaps && logic.gaps.length > 0) {
+      lines.push("| Affected File | Issue / Gap Found | Recommended Fix |");
+      lines.push("|---|---|---|");
+      logic.gaps.forEach((gap) => {
+        lines.push(`| \`${gap.affectedFile}\` | ${gap.issue} | ${gap.recommendation} |`);
+      });
+      lines.push("");
+    }
+  }
 
   // ── High risk files first ────────────────────────────────────────────────
   if (result.highRiskFiles.length > 0) {
@@ -68,10 +97,12 @@ export function formatComment(result: PRScoringResult, prTitle: string): string 
 
   // ── Footer ───────────────────────────────────────────────────────────────
   lines.push("---");
+  const aiStatusText = hybridResult?.aiUsed
+    ? "AI-Powered Deep Analysis Enabled"
+    : "Rule Engine Scan (AI Provider Offline/Skipped)";
+
   lines.push(
-    "*Powered by [AI Code Risk Monitor](https://github.com) • " +
-      `Scored ${totalFilesScored} file${totalFilesScored !== 1 ? "s" : ""} • ` +
-      `Add \`.riskcheck/config.yml\` to customize rules*`
+    `*Powered by [AI Code Risk Monitor](https://github.com) • ${aiStatusText} • Scored ${totalFilesScored} file${totalFilesScored !== 1 ? "s" : ""}*`
   );
 
   return lines.join("\n");
@@ -79,7 +110,7 @@ export function formatComment(result: PRScoringResult, prTitle: string): string 
 
 function formatFileTable(files: ScoringResult[]): string[] {
   const rows: string[] = [
-    "| File | Score | Tier | Risk Signals |",
+    "| File | Score | Tier | Risk Signals & AI Insights |",
     "|---|---|---|---|",
   ];
 

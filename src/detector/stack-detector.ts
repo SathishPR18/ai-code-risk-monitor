@@ -1,42 +1,52 @@
-export type Stack = "nextjs" | "unknown";
+export type Stack =
+  | "nextjs"
+  | "node_express"
+  | "python"
+  | "java"
+  | "go"
+  | "php"
+  | "generic";
 
 /**
  * Determine the stack from the list of changed files in the PR.
- *
- * Strategy:
- * 1. Fast path: check if any changed file path is a Next.js config file.
- * 2. If no config file changed, look for characteristic Next.js file patterns
- *    in the changed paths (app/ or pages/ directories, next.config.*, etc.)
- *
- * For a more thorough detection (e.g. when none of the above match),
- * the orchestrator can fetch package.json content and check dependencies.
+ * Supports Next.js, Node/Express, Python, Java, Go, PHP, or defaults to "generic".
  */
 export function detectStackFromPaths(filePaths: string[]): Stack {
-  const nextjsIndicators = [
-    // Config files
-    /^next\.config\.(js|ts|mjs|cjs)$/,
-    // App router files
-    /^(src\/)?app\/.+\.(tsx?|jsx?)$/,
-    // Pages router files
-    /^(src\/)?pages\/.+\.(tsx?|jsx?)$/,
-    // Next.js API routes
-    /^(src\/)?(app|pages)\/api\/.+/,
-    // Next.js special files
-    /^(src\/)?app\/(layout|page|loading|error|not-found)\.(tsx?|jsx?)$/,
-    // Middleware
-    /^middleware\.(ts|js)$/,
-  ];
+  const isNextJs = filePaths.some((p) =>
+    /^(src\/)?(app|pages)\/|next\.config\.(js|ts|mjs|cjs)|middleware\.(ts|js)/.test(p)
+  );
+  if (isNextJs) return "nextjs";
 
-  return filePaths.some((path) =>
-    nextjsIndicators.some((pattern) => pattern.test(path))
-  )
-    ? "nextjs"
-    : "unknown";
+  const isNodeExpress = filePaths.some((p) =>
+    /package\.json|server\.(js|ts)|app\.(js|ts)|routes\/|controllers\/|prisma\/|drizzle\//.test(p)
+  );
+  if (isNodeExpress) return "node_express";
+
+  const isPython = filePaths.some((p) =>
+    /requirements\.txt|pyproject\.toml|Pipfile|\.py$/.test(p)
+  );
+  if (isPython) return "python";
+
+  const isJava = filePaths.some((p) =>
+    /pom\.xml|build\.gradle|\.java$/.test(p)
+  );
+  if (isJava) return "java";
+
+  const isGo = filePaths.some((p) =>
+    /go\.mod|go\.sum|\.go$/.test(p)
+  );
+  if (isGo) return "go";
+
+  const isPhp = filePaths.some((p) =>
+    /composer\.json|\.php$/.test(p)
+  );
+  if (isPhp) return "php";
+
+  return "generic";
 }
 
 /**
  * Determine the stack by inspecting package.json content.
- * Used as a fallback when no Next.js files appear in the PR diff.
  */
 export function detectStackFromPackageJson(
   packageJsonContent: string
@@ -53,9 +63,10 @@ export function detectStackFromPackageJson(
     };
 
     if ("next" in allDeps) return "nextjs";
+    if ("express" in allDeps || "fastify" in allDeps || "koa" in allDeps) return "node_express";
   } catch {
-    // Invalid JSON — treat as unknown
+    // Invalid JSON
   }
 
-  return "unknown";
+  return "generic";
 }

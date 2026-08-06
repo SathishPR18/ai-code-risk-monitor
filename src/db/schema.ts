@@ -59,6 +59,8 @@ export const riskScores = pgTable(
     riskTier: varchar("risk_tier", { length: 16 }).notNull(), // "low" | "medium" | "high"
     // Array of human-readable reason strings, e.g. ["Auth config changed (+40)"]
     reasons: jsonb("reasons").notNull().$type<string[]>(),
+    businessLogicAnalysis: jsonb("business_logic_analysis"),
+    aiSummary: text("ai_summary"),
     stack: varchar("stack", { length: 64 }).notNull(),
     headSha: varchar("head_sha", { length: 40 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),

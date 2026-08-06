@@ -9,6 +9,7 @@ interface PullRequestPayload {
   number: number;
   pull_request: {
     title: string;
+    body?: string;
     head: { sha: string };
   };
   repository: {
@@ -146,6 +147,7 @@ export async function webhookRoute(app: FastifyInstance) {
         repoFullName: payload.repository.full_name,
         prNumber: payload.number,
         prTitle: payload.pull_request.title,
+        prDescription: payload.pull_request.body ?? "",
         headSha: payload.pull_request.head.sha,
         orgName,
       }).catch((err: unknown) => {
