@@ -62,21 +62,33 @@ export async function analyzePrWithGemini(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: userPrompt,
-      config: {
-        systemInstruction: SYSTEM_SECURITY_PROMPT,
-        responseMimeType: "application/json",
-        temperature: 0.1, // Low temperature for deterministic analysis
-      },
-    });
+    const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    let rawResponseText: string | null = null;
+
+    for (const model of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: userPrompt,
+          config: {
+            systemInstruction: SYSTEM_SECURITY_PROMPT,
+            responseMimeType: "application/json",
+            temperature: 0.1,
+          },
+        });
+        if (response.text) {
+          rawResponseText = response.text;
+          break;
+        }
+      } catch (modelErr) {
+        console.warn(`[gemini-client] Model ${model} failed, trying next candidate...`, (modelErr as Error).message);
+      }
+    }
 
     clearTimeout(timeoutId);
 
-    const rawResponseText = response.text;
     if (!rawResponseText) {
-      console.warn("[gemini-client] Empty response received from Gemini API");
+      console.warn("[gemini-client] All Gemini candidate models failed or returned empty text");
       return null;
     }
 
