@@ -51,16 +51,29 @@ function verifyWebhookSignature(
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
+// Extend Fastify request to hold the raw body for HMAC verification
+declare module "fastify" {
+  interface FastifyRequest {
+    rawBody?: Buffer;
+  }
+}
+
 export async function webhookRoute(app: FastifyInstance) {
-  // Fastify parses body as JSON by default — we need the raw buffer for HMAC.
-  // addContentTypeParser overrides for this route only.
-  app.addContentTypeParser(
-    "application/json",
-    { parseAs: "buffer" },
-    (_req, body, done) => {
-      done(null, body);
+  // ── Capture raw body BEFORE Fastify parses JSON ─────────────────────────
+  // This avoids the 415 "Unsupported Media Type" error caused by overriding
+  // the default JSON content-type parser inside a plugin scope.
+  app.addHook("preParsing", async (request, _reply, payload) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of payload) {
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
     }
-  );
+    const rawBody = Buffer.concat(chunks);
+    request.rawBody = rawBody;
+
+    // Return a new readable stream for Fastify's default JSON parser
+    const { Readable } = await import("stream");
+    return Readable.from(rawBody);
+  });
 
   const handleWebhook = async (request: FastifyRequest, reply: FastifyReply) => {
       const secret = process.env.GITHUB_WEBHOOK_SECRET;
@@ -70,7 +83,12 @@ export async function webhookRoute(app: FastifyInstance) {
       }
 
       // ── 1. Verify HMAC signature (security-critical) ──────────────────────
-      const rawBody = request.body as Buffer;
+      const rawBody = request.rawBody;
+      if (!rawBody) {
+        request.log.error("Raw body not captured — cannot verify signature");
+        return reply.status(500).send({ error: "Internal error" });
+      }
+
       const signature = request.headers["x-hub-signature-256"] as
         | string
         | undefined;
@@ -96,12 +114,12 @@ export async function webhookRoute(app: FastifyInstance) {
         return reply.status(200).send({ message: "Event ignored" });
       }
 
-      let payload: PullRequestPayload;
-      try {
-        payload = JSON.parse(rawBody.toString("utf-8")) as PullRequestPayload;
-      } catch {
-        request.log.error("Failed to parse webhook payload");
-        return reply.status(400).send({ error: "Invalid JSON payload" });
+      // Body is already parsed as JSON by Fastify's default parser
+      const payload = request.body as PullRequestPayload;
+
+      if (!payload || !payload.action) {
+        request.log.error("Invalid or missing webhook payload");
+        return reply.status(400).send({ error: "Invalid payload" });
       }
 
       // Only handle opened, synchronize, or reopened
