@@ -135,7 +135,7 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
       score: r.score,
       riskTier: r.tier,
       reasons: r.reasons,
-      businessLogicAnalysis: finalResult.aiAnalysis?.businessLogicAnalysis ?? null,
+      businessLogicAnalysis: finalResult.aiAnalysis?.intentAnalysis ?? null,
       aiSummary: finalResult.aiAnalysis?.summary ?? null,
       stack,
       headSha,

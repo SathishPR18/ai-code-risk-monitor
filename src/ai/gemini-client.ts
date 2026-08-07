@@ -6,16 +6,16 @@ import {
 } from "./prompts.js";
 import { parseJsonFromAi } from "./json-parser.js";
 
-export interface BusinessLogicGap {
+export interface IntentGap {
   issue: string;
   affectedFile: string;
   recommendation: string;
 }
 
-export interface BusinessLogicAnalysis {
+export interface IntentAnalysis {
   hasMismatch: boolean;
   explanation: string;
-  gaps: BusinessLogicGap[];
+  gaps: IntentGap[];
 }
 
 export interface AiFileAnalysis {
@@ -30,7 +30,7 @@ export interface AiAnalysisResult {
   score: number;
   tier: "high" | "medium" | "low";
   summary: string;
-  businessLogicAnalysis: BusinessLogicAnalysis;
+  intentAnalysis: IntentAnalysis;
   fileAnalysis: AiFileAnalysis[];
   isFallback?: boolean;
 }

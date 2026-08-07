@@ -47,13 +47,13 @@ export function formatComment(result: HybridScoringResult | PRScoringResult, prT
     lines.push("");
   }
 
-  // ── Business Logic Audit Section ─────────────────────────────────────────
-  if (hybridResult?.aiAnalysis?.businessLogicAnalysis) {
-    const logic = hybridResult.aiAnalysis.businessLogicAnalysis;
+  // ── PR Intent & Implementation Audit Section ─────────────────────────────
+  if (hybridResult?.aiAnalysis?.intentAnalysis) {
+    const logic = hybridResult.aiAnalysis.intentAnalysis;
     const statusEmoji = logic.hasMismatch ? "⚠️" : "✅";
-    const statusText = logic.hasMismatch ? "**LOGIC MISMATCH / GAP DETECTED**" : "Intent Matches Implementation";
+    const statusText = logic.hasMismatch ? "**MISMATCH / GAP DETECTED**" : "Intent Matches Implementation";
 
-    lines.push(`### 🤖 Business Logic & Intent Audit (${statusEmoji} ${statusText})`);
+    lines.push(`### 🤖 PR Intent & Implementation Audit (${statusEmoji} ${statusText})`);
     lines.push("");
     lines.push(`> ${logic.explanation}`);
     lines.push("");

@@ -42,7 +42,7 @@ describe("hybrid-engine — combineScores", () => {
       score: 10,
       tier: "low",
       summary: "AI thinks it is safe",
-      businessLogicAnalysis: {
+      intentAnalysis: {
         hasMismatch: false,
         explanation: "Matches intent",
         gaps: [],
@@ -97,7 +97,7 @@ describe("hybrid-engine — combineScores", () => {
       score: 85,
       tier: "high",
       summary: "Critical logic flaw found by AI",
-      businessLogicAnalysis: {
+      intentAnalysis: {
         hasMismatch: true,
         explanation: "Missing validation",
         gaps: [
