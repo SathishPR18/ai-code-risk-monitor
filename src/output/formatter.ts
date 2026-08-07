@@ -21,6 +21,16 @@ const STATUS_STATE: Record<RiskTier, "success" | "failure" | "failure"> = {
   high: "failure",
 };
 
+// ─── Progress Bar Helper (Option 3: HTML + Unicode) ───────────────────────────
+
+function getProgressBar(score: number): string {
+  const clamped = Math.min(100, Math.max(0, score));
+  const filledCount = Math.round((clamped / 100) * 10);
+  const emptyCount = 10 - filledCount;
+  const blocks = "█".repeat(filledCount) + "░".repeat(emptyCount);
+  return `<progress value="${clamped}" max="100"></progress> \`[${blocks}]\``;
+}
+
 // ─── PR Comment ───────────────────────────────────────────────────────────────
 
 /**
@@ -33,70 +43,73 @@ export function formatComment(result: HybridScoringResult | PRScoringResult, prT
   const hybridResult = "aiAnalysis" in result ? (result as HybridScoringResult) : null;
 
   const lines: string[] = [
-    `## ${emoji} Risk Check: **${label}**`,
-    "",
-    `> **PR:** ${prTitle}`,
-    `> **Files scored:** ${totalFilesScored} | **Highest risk tier:** ${emoji} ${label}`,
+    `## ${emoji} Risk check: **${label.toLowerCase()}**`,
+    `${prTitle} · ${totalFilesScored} file${totalFilesScored !== 1 ? "s" : ""} scored`,
     "",
   ];
 
   // ── AI Summary Section ───────────────────────────────────────────────────
   if (hybridResult?.aiAnalysis?.summary) {
     lines.push(`> 🤖 **AI Summary:** ${hybridResult.aiAnalysis.summary}`);
+    lines.push(`> ⚠️ *This is an AI-based summary. Do not trust this fully; it is for validation purposes only. Please check carefully if you get a Red (High) risk tier.*`);
     lines.push("");
   }
 
   // ── Business Logic Audit Section ─────────────────────────────────────────
   if (hybridResult?.aiAnalysis?.businessLogicAnalysis) {
     const logic = hybridResult.aiAnalysis.businessLogicAnalysis;
-    const statusEmoji = logic.hasMismatch ? "⚠️" : "✅";
-    const statusText = logic.hasMismatch ? "**LOGIC MISMATCH / GAP DETECTED**" : "Intent Matches Implementation";
+    const statusBadge = logic.hasMismatch
+      ? "`⚠️ LOGIC MISMATCH / GAP DETECTED`"
+      : "`Intent matches implementation`";
 
-    lines.push(`### 🤖 Business Logic & Intent Audit (${statusEmoji} ${statusText})`);
-    lines.push("");
+    lines.push(`### 🤖 **Business logic audit** &nbsp;&nbsp;&nbsp;&nbsp; ${statusBadge}`);
     lines.push(`> ${logic.explanation}`);
     lines.push("");
-
-    if (logic.gaps && logic.gaps.length > 0) {
-      lines.push("| Affected File | Issue / Gap Found | Recommended Fix |");
-      lines.push("|---|---|---|");
-      logic.gaps.forEach((gap) => {
-        lines.push(`| \`${gap.affectedFile}\` | ${gap.issue} | ${gap.recommendation} |`);
-      });
-      lines.push("");
-    }
   }
 
-  // ── High risk files first ────────────────────────────────────────────────
-  if (result.highRiskFiles.length > 0) {
-    lines.push("### 🔴 High Risk Files");
-    lines.push("");
-    lines.push(...formatFileTable(result.highRiskFiles));
-    lines.push("");
-  }
+  // ── File Cards (Sorted by Score Descending) ──────────────────────────────
+  const sortedFiles = [...result.fileResults].sort((a, b) => b.score - a.score);
+  const gaps = hybridResult?.aiAnalysis?.businessLogicAnalysis?.gaps ?? [];
 
-  // ── Medium risk files ────────────────────────────────────────────────────
-  if (result.mediumRiskFiles.length > 0) {
-    lines.push("### 🟡 Medium Risk Files");
-    lines.push("");
-    lines.push(...formatFileTable(result.mediumRiskFiles));
-    lines.push("");
-  }
+  for (const file of sortedFiles) {
+    const fileEmoji = TIER_EMOJI[file.tier];
+    const fileTierLabel = TIER_LABEL[file.tier];
+    const progressBar = getProgressBar(file.score);
 
-  // ── Low risk files (collapsed) ───────────────────────────────────────────
-  if (result.lowRiskFiles.length > 0) {
-    lines.push("<details>");
-    lines.push(
-      `<summary>🟢 Low Risk Files (${result.lowRiskFiles.length})</summary>`
+    lines.push(`> ### 📄 **${file.filePath}**`);
+    lines.push(`> ${progressBar} &nbsp; **Score:** ${file.score}/100 &nbsp;|&nbsp; **Tier:** ${fileEmoji} ${fileTierLabel}`);
+    lines.push(`>`);
+
+    // Match business logic gaps for this file
+    const matchingGaps = gaps.filter(
+      (g) => g.affectedFile.toLowerCase() === file.filePath.toLowerCase()
     );
-    lines.push("");
-    lines.push(...formatFileTable(result.lowRiskFiles));
-    lines.push("</details>");
-    lines.push("");
+
+    if (matchingGaps.length > 0) {
+      matchingGaps.forEach((gap) => {
+        lines.push(`> **Issue / Gap Found:** ${gap.issue}`);
+        lines.push(`> → *${gap.recommendation}*`);
+        lines.push(`>`);
+      });
+    }
+
+    // List risk signals & AI insights
+    if (file.reasons.length > 0) {
+      lines.push(`> **Risk Signals & Insights:**`);
+      file.reasons.forEach((reason) => {
+        lines.push(`> • ${reason}`);
+      });
+      lines.push(`>`);
+    }
+
+    lines.push(""); // Spacing between file cards
   }
 
-  // ── Footer ───────────────────────────────────────────────────────────────
-  lines.push("---");
+  // ── Collapsible Scan Details Footer ──────────────────────────────────────
+  lines.push("<details>");
+  lines.push("<summary><b>🔍 View scan details</b></summary>");
+  lines.push("");
+
   const aiStatusText = hybridResult?.aiUsed
     ? "AI-Powered Deep Analysis Enabled"
     : "Rule Engine Scan (AI Provider Offline/Skipped)";
@@ -104,6 +117,7 @@ export function formatComment(result: HybridScoringResult | PRScoringResult, prT
   lines.push(
     `*Powered by [AI Code Risk Monitor](https://github.com) • ${aiStatusText} • Scored ${totalFilesScored} file${totalFilesScored !== 1 ? "s" : ""}*`
   );
+  lines.push("</details>");
 
   return lines.join("\n");
 }
