@@ -33,23 +33,56 @@ function extractLines(patch: string, prefix: "+" | "-"): string[] {
     .map((l) => l.slice(1)); // strip the "+" or "-" prefix
 }
 
+// ─── Language Validation Patterns ─────────────────────────────────────────────
+
+const LANGUAGE_VALIDATION_PATTERNS: Record<string, RegExp> = {
+  // TypeScript/JavaScript: Zod, Yup, Joi, class-validator, safeParse, etc.
+  js: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+  ts: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+  tsx: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+  jsx: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+  mjs: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+  cjs: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+  mts: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+  cts: /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(|joi\.|class-validator/i,
+
+  // Python: Pydantic schemas, Marshmallow, Django forms/serializers, WTForms
+  py: /BaseModel|Field\(|validate|marshmallow|Serializer|wtforms|Validator/i,
+
+  // Go: struct tags for validation or validator packages
+  go: /validate:".+"|\.Struct\(|validator\.New\(\)/i,
+
+  // Java: jakarta/javax validation annotations
+  java: /@(NotNull|NotEmpty|NotBlank|Size|Pattern|Min|Max|Valid|Email)/,
+
+  // PHP: Laravel request/validator, Symfony validator
+  php: /\$request->validate\(|Validator::make\(|\$this->validate\(/i,
+
+  // HTML: HTML5 form validation attributes
+  html: /\s(required|pattern|minlength|maxlength)[\s=>]/i,
+  htm: /\s(required|pattern|minlength|maxlength)[\s=>]/i,
+};
+
 // ─── Detectors ────────────────────────────────────────────────────────────────
 
 export const AST_DETECTORS: ASTDetector[] = [
-  // ── Removed Zod/Yup validation (weight: +30) ──────────────────────────────
+  // ── Removed validation (weight: +30) ──────────────────────────────────────
   {
     signal: "removed_validation",
-    reason: "Input validation schema removed or loosened (Zod/Yup)",
+    reason: "Input validation schema removed or loosened",
     detect: ({ filePath, patch }: ScoringInput): boolean => {
-      if (!isTsOrJs(filePath) || !patch) return false;
+      if (!patch) return false;
+
+      const ext = filePath.split(".").pop()?.toLowerCase();
+      if (!ext) return false;
+
+      const validationPattern = LANGUAGE_VALIDATION_PATTERNS[ext];
+      if (!validationPattern) return false;
 
       const removedLines = extractLines(patch, "-");
       const addedLines = extractLines(patch, "+");
 
       // Check if validation was in removed lines but NOT in added lines
-      const validationPattern =
-        /z\.(object|string|number|boolean|array|enum|union|literal|parse|safeParse)|yup\.(object|string|number|array|mixed)|\.validate\(|\.safeParse\(|\.parse\(/;
-
       const hadValidation = removedLines.some((l) =>
         validationPattern.test(l)
       );

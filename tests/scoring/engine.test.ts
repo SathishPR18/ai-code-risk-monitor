@@ -148,7 +148,7 @@ describe("scoreFile — pure CSS / styling (low risk)", () => {
   });
 });
 
-describe("scoreFile — removed Zod validation", () => {
+describe("scoreFile — removed validation (multi-language)", () => {
   it("scores HIGH when Zod schema is removed from an API route", () => {
     const patch = [
       "-  const schema = z.object({ email: z.string().email() });",
@@ -167,6 +167,113 @@ describe("scoreFile — removed Zod validation", () => {
     // api_route(+30) + removed_validation(+30) + no_test(+15) = 75 → HIGH
     expect(result.tier).toBe("high");
     expect(result.score).toBe(75);
+    expect(
+      result.reasons.some((r) => r.includes("validation schema removed"))
+    ).toBe(true);
+  });
+
+  it("scores for Python when BaseModel/Field validation is removed", () => {
+    const patch = [
+      "-    password: str = Field(..., min_length=8)",
+      "+    password: str",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "backend/schemas.py",
+        patch,
+        allChangedPaths: ["backend/schemas.py"],
+      })
+    );
+
+    // removed_validation(+30) + no_test(+15) = 45 → MEDIUM
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(45);
+    expect(
+      result.reasons.some((r) => r.includes("validation schema removed"))
+    ).toBe(true);
+  });
+
+  it("scores for Go when struct validation tags are removed", () => {
+    const patch = [
+      "-    Email string `json:\"email\" validate:\"required,email\"`Decimal",
+      "+    Email string `json:\"email\"`Decimal",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "api/user.go",
+        patch,
+        allChangedPaths: ["api/user.go"],
+      })
+    );
+
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(45);
+    expect(
+      result.reasons.some((r) => r.includes("validation schema removed"))
+    ).toBe(true);
+  });
+
+  it("scores for Java when Bean validation annotations are removed", () => {
+    const patch = [
+      "-    @NotNull",
+      "-    @Size(min = 8)",
+      "     private String password;",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "src/main/java/UserDto.java",
+        patch,
+        allChangedPaths: ["src/main/java/UserDto.java"],
+      })
+    );
+
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(45);
+    expect(
+      result.reasons.some((r) => r.includes("validation schema removed"))
+    ).toBe(true);
+  });
+
+  it("scores for PHP when controller validation is removed", () => {
+    const patch = [
+      "-        $request->validate([ 'email' => 'required|email' ]);",
+      "+        // validation removed",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "app/Http/Controllers/AuthController.php",
+        patch,
+        allChangedPaths: ["app/Http/Controllers/AuthController.php"],
+      })
+    );
+
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(45);
+    expect(
+      result.reasons.some((r) => r.includes("validation schema removed"))
+    ).toBe(true);
+  });
+
+  it("scores for HTML when client-side validation attributes are removed", () => {
+    const patch = [
+      "-    <input type=\"email\" name=\"email\" required />",
+      "+    <input type=\"email\" name=\"email\" />",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "public/index.html",
+        patch,
+        allChangedPaths: ["public/index.html"],
+      })
+    );
+
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(45);
     expect(
       result.reasons.some((r) => r.includes("validation schema removed"))
     ).toBe(true);

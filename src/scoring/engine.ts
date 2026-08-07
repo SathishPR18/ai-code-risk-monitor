@@ -48,26 +48,23 @@ export function scoreFile(input: ScoringInput): ScoringResult {
     }
   }
 
-  // ── Layer 2: AST detectors (only for TS/JS files) ──────────────────────────
-  const isTsOrJs = /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/.test(filePath);
-  if (isTsOrJs) {
-    for (const detector of AST_DETECTORS) {
-      if (config.disabledSignals.includes(detector.signal)) continue;
+  // ── Layer 2: Code-Level detectors ──────────────────────────────────────────
+  for (const detector of AST_DETECTORS) {
+    if (config.disabledSignals.includes(detector.signal)) continue;
 
-      // Avoid double-counting: skip if already triggered by path detector
-      const alreadyTriggered = triggeredSignals.some(
-        (s) => s.name === detector.signal
-      );
-      if (alreadyTriggered) continue;
+    // Avoid double-counting: skip if already triggered by path detector
+    const alreadyTriggered = triggeredSignals.some(
+      (s) => s.name === detector.signal
+    );
+    if (alreadyTriggered) continue;
 
-      if (detector.detect(input)) {
-        const weight = config.weights[detector.signal] ?? 0;
-        triggeredSignals.push({
-          name: detector.signal,
-          weight,
-          reason: detector.reason,
-        });
-      }
+    if (detector.detect(input)) {
+      const weight = config.weights[detector.signal] ?? 0;
+      triggeredSignals.push({
+        name: detector.signal,
+        weight,
+        reason: detector.reason,
+      });
     }
   }
 
