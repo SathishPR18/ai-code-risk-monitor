@@ -1,4 +1,4 @@
-import type { PRScoringResult, ScoringResult, RiskTier } from "../scoring/signals.js";
+import type { PRScoringResult, RiskTier } from "../scoring/signals.js";
 import type { HybridScoringResult } from "../scoring/hybrid-engine.js";
 
 // ─── Tier Visuals ─────────────────────────────────────────────────────────────
@@ -120,33 +120,6 @@ export function formatComment(result: HybridScoringResult | PRScoringResult, prT
   lines.push("</details>");
 
   return lines.join("\n");
-}
-
-function formatFileTable(files: ScoringResult[]): string[] {
-  const rows: string[] = [
-    "| File | Score | Tier | Risk Signals & AI Insights |",
-    "|---|---|---|---|",
-  ];
-
-  for (const file of files) {
-    const emoji = TIER_EMOJI[file.tier];
-    const reasonsText =
-      file.reasons.length > 0
-        ? file.reasons.join("<br>")
-        : "_No specific signals_";
-
-    // Truncate long file paths for readability
-    const displayPath =
-      file.filePath.length > 60
-        ? `...${file.filePath.slice(-57)}`
-        : file.filePath;
-
-    rows.push(
-      `| \`${displayPath}\` | ${file.score} | ${emoji} ${TIER_LABEL[file.tier]} | ${reasonsText} |`
-    );
-  }
-
-  return rows;
 }
 
 // ─── Status Check ─────────────────────────────────────────────────────────────
