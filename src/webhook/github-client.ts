@@ -209,3 +209,29 @@ export async function getFileContent(
     throw err;
   }
 }
+
+/**
+ * Automatically attach a risk tier label (risk:high, risk:medium, risk:low) to the PR.
+ */
+export async function postPRLabel(
+  installationId: number,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  tier: "high" | "medium" | "low"
+): Promise<void> {
+  const octokit = await getInstallationOctokit(installationId);
+  const labelName = `risk:${tier}`;
+
+  try {
+    await octokit.issues.addLabels({
+      owner,
+      repo,
+      issue_number: prNumber,
+      labels: [labelName],
+    });
+  } catch (err: unknown) {
+    // Log error gracefully without failing orchestrator pipeline
+    console.error(`[GitHub Client] Failed to attach label ${labelName} to PR #${prNumber}:`, err);
+  }
+}

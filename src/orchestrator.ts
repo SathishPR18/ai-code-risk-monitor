@@ -2,6 +2,7 @@ import {
   getPRFiles,
   postOrUpdateComment,
   postStatusCheck,
+  postPRLabel,
   getFileContent,
 } from "./webhook/github-client.js";
 import {
@@ -14,9 +15,17 @@ import { combineScores } from "./scoring/hybrid-engine.js";
 import { analyzePrWithGemini } from "./ai/gemini-client.js";
 import { formatComment, formatStatusCheck } from "./output/formatter.js";
 import { upsertOrg, upsertRepo, logRiskScores } from "./db/risk-log.js";
+import { sendHighRiskAlert } from "./notifications/alert-service.js";
 import type { NewRiskScore } from "./db/schema.js";
 
-// ─── Input ────────────────────────────────────────────────────────────────────
+function isIgnored(filePath: string, ignorePatterns: string[]): boolean {
+  return ignorePatterns.some((pattern) => {
+    if (!pattern) return false;
+    const cleanPattern = pattern.replace(/^\//, "").replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*");
+    const regex = new RegExp(`^${cleanPattern}$`, "i");
+    return regex.test(filePath) || filePath.toLowerCase().includes(pattern.replace(/\*/g, "").toLowerCase());
+  });
+}
 
 export interface OrchestrateInput {
   installationId: number;
@@ -32,19 +41,6 @@ export interface OrchestrateInput {
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
 
-/**
- * The main pipeline. Called asynchronously after the webhook responds 202.
- *
- * Steps:
- *  1. Fetch PR files + diffs
- *  2. Detect stack (Universal: Next.js, Node/Express, Python, Java, Go, PHP, or Generic)
- *  3. Load config (.riskcheck/config.yml)
- *  4. Layer 1: Score files with Rule Engine
- *  5. Layer 2: Perform Gemini AI Deep Analysis (with 5s timeout & fail-safe fallback)
- *  6. Combine scores with Max(L1, L2) math & non-demotion rule
- *  7. Log results to Neon DB
- *  8. Post PR comment & commit status check to GitHub
- */
 export async function orchestrate(input: OrchestrateInput): Promise<void> {
   const {
     installationId,
@@ -63,18 +59,17 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
   );
 
   // ── Step 1: Fetch PR files ────────────────────────────────────────────────
-  const prFiles = await getPRFiles(installationId, owner, repo, prNumber);
-  const allChangedPaths = prFiles.map((f) => f.filename);
+  const rawPrFiles = await getPRFiles(installationId, owner, repo, prNumber);
+  const allChangedPaths = rawPrFiles.map((f) => f.filename);
 
   console.log(
-    `[orchestrator] Fetched ${prFiles.length} changed files for PR #${prNumber}`
+    `[orchestrator] Fetched ${rawPrFiles.length} changed files for PR #${prNumber}`
   );
 
   // ── Step 2: Detect stack ──────────────────────────────────────────────────
   let stack = detectStackFromPaths(allChangedPaths);
 
   if (stack === "generic") {
-    // Fallback: fetch package.json and check deps if available
     const packageJson = await getFileContent(
       installationId,
       owner,
@@ -95,7 +90,15 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
     repo,
     ".riskcheck/config.yml"
   );
-  const config = await loadConfig(configContent);
+  const config = await loadConfig(configContent, stack);
+
+  // Filter out ignored files (lockfiles, dist, vendor)
+  const ignorePatterns = config.ignorePaths ?? [];
+  const prFiles = rawPrFiles.filter((f) => !isIgnored(f.filename, ignorePatterns));
+
+  console.log(
+    `[orchestrator] Processing ${prFiles.length} active files after ignoring ${rawPrFiles.length - prFiles.length} files`
+  );
 
   // ── Step 4: Layer 1 Rule Engine Scoring ──────────────────────────────────
   const scoringFiles = prFiles.map((f) => ({
@@ -142,16 +145,11 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
     }));
 
     await logRiskScores(scoreRecords);
-
-    console.log(
-      `[orchestrator] Logged ${scoreRecords.length} score records to DB`
-    );
   } catch (dbErr) {
-    // DB failure should NOT prevent the comment from being posted
     console.error("[orchestrator] DB logging failed:", dbErr);
   }
 
-  // ── Step 8: Post comment + status check ──────────────────────────────────
+  // ── Step 8: Post comment + status check + auto-label ──────────────────────
   const commentBody = formatComment(finalResult, prTitle);
   const statusPayload = formatStatusCheck(finalResult);
 
@@ -170,9 +168,21 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
       description: statusPayload.description,
       context: statusPayload.context,
     }),
+    postPRLabel(installationId, owner, repo, prNumber, finalResult.prTier),
   ]);
 
+  // ── Step 9: Send High Risk Alert if needed ────────────────────────────────
+  if (finalResult.prTier === "high") {
+    sendHighRiskAlert({
+      prTitle,
+      prNumber,
+      repoFullName,
+      score: finalResult.highRiskFiles[0]?.score ?? 60,
+      highRiskFileCount: finalResult.highRiskFiles.length,
+    }).catch((err) => console.error("[orchestrator] High risk alert failed:", err));
+  }
+
   console.log(
-    `[orchestrator] ✅ Done — PR #${prNumber} comment + status check posted (${finalResult.prTier.toUpperCase()})`
+    `[orchestrator] ✅ Done — PR #${prNumber} comment + status check + label posted (${finalResult.prTier.toUpperCase()})`
   );
 }

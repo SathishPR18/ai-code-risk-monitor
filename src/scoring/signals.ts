@@ -58,6 +58,7 @@ export interface RiskConfig {
   weights: Partial<Record<SignalName, number>>;
   sensitivePaths: string[];
   disabledSignals: string[];
+  ignorePaths?: string[];
   tiers: {
     low: TierThreshold;
     medium: TierThreshold;

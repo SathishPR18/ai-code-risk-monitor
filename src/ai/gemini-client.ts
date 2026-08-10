@@ -10,6 +10,7 @@ export interface IntentGap {
   issue: string;
   affectedFile: string;
   recommendation: string;
+  suggestedDiff?: string;
 }
 
 export interface IntentAnalysis {

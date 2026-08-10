@@ -62,7 +62,10 @@ export function formatComment(result: HybridScoringResult | PRScoringResult, prT
       lines.push("| Affected File | Issue / Gap Found | Recommended Fix |");
       lines.push("|---|---|---|");
       logic.gaps.forEach((gap) => {
-        lines.push(`| \`${gap.affectedFile}\` | ${gap.issue} | ${gap.recommendation} |`);
+        const fixText = gap.suggestedDiff
+          ? `${gap.recommendation}<br><pre><code>${gap.suggestedDiff.replace(/\n/g, "<br>")}</code></pre>`
+          : gap.recommendation;
+        lines.push(`| \`${gap.affectedFile}\` | ${gap.issue} | ${fixText} |`);
       });
       lines.push("");
     }

@@ -1,5 +1,11 @@
 import type { RiskConfig } from "../scoring/signals.js";
-import { DEFAULT_NEXTJS_CONFIG } from "./default-config.js";
+import {
+  DEFAULT_NEXTJS_CONFIG,
+  DEFAULT_PYTHON_CONFIG,
+  DEFAULT_GO_CONFIG,
+  DEFAULT_JAVA_CONFIG,
+  DEFAULT_PHP_CONFIG,
+} from "./default-config.js";
 
 // ─── YAML parser (js-yaml) ────────────────────────────────────────────────────
 // We import lazily to avoid startup cost when config file doesn't exist
@@ -19,40 +25,41 @@ async function getYaml() {
 // ─── Config Schema (partial — only user-overridable fields) ──────────────────
 
 interface PartialUserConfig {
-  // Extra sensitive paths the user wants to flag (in addition to built-ins)
   sensitivePaths?: string[];
-  // Override weights for specific signals
   weights?: Partial<Record<string, number>>;
-  // Signals to disable
   disabledSignals?: string[];
+  ignorePaths?: string[];
 }
 
-// ─── Loader ──────────────────────────────────────────────────────────────────
+function getDefaultConfigForStack(stack: string): RiskConfig {
+  const normalized = stack.toLowerCase();
+  if (normalized.includes("python")) return DEFAULT_PYTHON_CONFIG;
+  if (normalized.includes("go")) return DEFAULT_GO_CONFIG;
+  if (normalized.includes("java")) return DEFAULT_JAVA_CONFIG;
+  if (normalized.includes("php")) return DEFAULT_PHP_CONFIG;
+  return DEFAULT_NEXTJS_CONFIG;
+}
 
 /**
- * Load and merge config.
- *
- * Priority order (highest wins):
- *   user's .riskcheck/config.yml  >  built-in defaults
- *
- * If no config file is found, returns built-in defaults unchanged.
+ * Load and merge config based on detected stack and optional .riskcheck/config.yml.
  */
 export async function loadConfig(
-  configContent: string | null
+  configContent: string | null,
+  stack: string = "nextjs"
 ): Promise<RiskConfig> {
+  const defaultConfig = getDefaultConfigForStack(stack);
+
   if (!configContent) {
-    return DEFAULT_NEXTJS_CONFIG;
+    return defaultConfig;
   }
 
   try {
     const yamlLib = await getYaml();
     const userConfig = yamlLib.load(configContent) as PartialUserConfig;
 
-    // Deep merge: user config layers on top of defaults
-    return mergeConfigs(DEFAULT_NEXTJS_CONFIG, userConfig ?? {});
+    return mergeConfigs(defaultConfig, userConfig ?? {});
   } catch {
-    // Malformed YAML — fall back to defaults silently
-    return DEFAULT_NEXTJS_CONFIG;
+    return defaultConfig;
   }
 }
 
@@ -62,20 +69,21 @@ function mergeConfigs(
 ): RiskConfig {
   return {
     ...defaults,
-    // Append user's extra sensitive paths to the built-in list
     sensitivePaths: [
       ...defaults.sensitivePaths,
       ...(user.sensitivePaths ?? []),
     ],
-    // Override weights where user has specified them
     weights: {
       ...defaults.weights,
       ...user.weights,
     },
-    // Merge disabled signals
     disabledSignals: [
       ...(defaults.disabledSignals ?? []),
       ...(user.disabledSignals ?? []),
+    ],
+    ignorePaths: [
+      ...(defaults.ignorePaths ?? []),
+      ...(user.ignorePaths ?? []),
     ],
   };
 }
