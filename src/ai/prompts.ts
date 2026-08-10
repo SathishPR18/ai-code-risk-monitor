@@ -74,8 +74,7 @@ Return ONLY a valid JSON object matching this schema (no extra text):
       {
         "issue": "Specific logic bug or gap",
         "affectedFile": "path/to/file",
-        "recommendation": "How to fix it",
-        "suggestedDiff": "Short 2-4 line unified diff snippet showing the recommended code fix, or empty string"
+        "recommendation": "How to fix it"
       }
     ]
   },
