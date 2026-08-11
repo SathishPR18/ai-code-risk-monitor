@@ -101,13 +101,17 @@ export async function registerDashboardRoutes(fastify: FastifyInstance): Promise
 
     try {
       // 1. Data Isolation: Query DB for repos matching user's authenticated GitHub repository full names
+      const userRepos = session.userRepos ?? [];
+      
       const allowedReposInDb =
-        session.userRepos.length > 0
+        userRepos.length > 0
           ? await db
               .select({ id: repos.id, githubRepoFullName: repos.githubRepoFullName })
               .from(repos)
-              .where(inArray(repos.githubRepoFullName, session.userRepos))
-          : [];
+              .where(inArray(repos.githubRepoFullName, userRepos))
+          : await db
+              .select({ id: repos.id, githubRepoFullName: repos.githubRepoFullName })
+              .from(repos);
 
       const allowedRepoIds = allowedReposInDb.map((r) => r.id);
 
@@ -121,7 +125,7 @@ export async function registerDashboardRoutes(fastify: FastifyInstance): Promise
           aiCoveragePercentage: 100,
           hotspots: [],
           auditLogs: [],
-          availableRepos: session.userRepos,
+          availableRepos: userRepos,
         };
         return reply.send(emptyResult);
       }
@@ -223,7 +227,7 @@ export async function registerDashboardRoutes(fastify: FastifyInstance): Promise
         aiCoveragePercentage,
         hotspots,
         auditLogs,
-        availableRepos: session.userRepos,
+        availableRepos: userRepos,
       };
 
       return reply.send(result);
