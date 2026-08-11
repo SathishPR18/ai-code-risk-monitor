@@ -437,7 +437,7 @@ export function renderDashboardView(session: UserSession): string {
 
       <div class="user-profile">
         <img class="user-avatar" src="${session.avatarUrl || 'https://github.com/github.png'}" alt="Avatar" />
-        <span>${session.username} (${session.role === 'super_admin' ? 'Super Admin' : 'Org User'})</span>
+        <span>${session.username}</span>
         <a href="/auth/logout" class="btn-logout">Logout</a>
       </div>
     </div>

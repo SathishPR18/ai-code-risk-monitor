@@ -38,7 +38,7 @@ export async function exchangeCodeForToken(code: string, redirectUri: string): P
   }
 }
 
-export async function fetchGitHubUserProfile(accessToken: string): Promise<{ username: string; avatarUrl: string; orgs: string[] } | null> {
+export async function fetchGitHubUserProfile(accessToken: string): Promise<{ username: string; avatarUrl: string; userRepos: string[] } | null> {
   try {
     // 1. Fetch user identity
     const userRes = await fetch("https://api.github.com/user", {
@@ -51,33 +51,26 @@ export async function fetchGitHubUserProfile(accessToken: string): Promise<{ use
     if (!userRes.ok) return null;
     const userData = (await userRes.json()) as { login: string; avatar_url: string };
 
-    // 2. Fetch user's org memberships
-    const orgsRes = await fetch("https://api.github.com/user/orgs", {
+    // 2. Fetch user's accessible repositories from GitHub API
+    const reposRes = await fetch("https://api.github.com/user/repos?per_page=100&sort=updated", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "User-Agent": "AI-Code-Risk-Monitor",
       },
     });
 
-    const orgsData = orgsRes.ok ? ((await orgsRes.json()) as { login: string }[]) : [];
-    const orgs = [userData.login, ...orgsData.map((o) => o.login)];
+    const reposData = reposRes.ok ? ((await reposRes.json()) as { full_name: string }[]) : [];
+    const userRepos = reposData.map((r) => r.full_name);
 
     return {
       username: userData.login,
       avatarUrl: userData.avatar_url,
-      orgs,
+      userRepos,
     };
   } catch (err) {
     console.error("[Auth Service] Fetch GitHub profile failed:", err);
     return null;
   }
-}
-
-export function determineUserRole(username: string): "super_admin" | "org_user" {
-  const superAdmins = (process.env.SUPER_ADMIN_USERNAMES || "SathishPR18")
-    .split(",")
-    .map((s) => s.trim().toLowerCase());
-  return superAdmins.includes(username.toLowerCase()) ? "super_admin" : "org_user";
 }
 
 export function createSessionToken(session: UserSession): string {

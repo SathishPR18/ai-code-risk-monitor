@@ -1,8 +1,7 @@
 export interface UserSession {
   username: string;
   avatarUrl?: string;
-  role: "super_admin" | "org_user";
-  userOrgs: string[];
+  userRepos: string[]; // e.g. ["aathiLM10/Life_tracker", "SathishPR18/ai-code-risk-monitor"]
 }
 
 export interface RiskyHotspot {
@@ -32,6 +31,5 @@ export interface DashboardStatsResult {
   aiCoveragePercentage: number;
   hotspots: RiskyHotspot[];
   auditLogs: PRAuditItem[];
-  availableOrgs: string[];
   availableRepos: string[];
 }
