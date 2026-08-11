@@ -24,9 +24,14 @@ const app = Fastify({
   },
 });
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
+import fastifyCookie from "@fastify/cookie";
+import { registerDashboardRoutes } from "./dashboard/routes.js";
+
+// ─── Routes & Plugins ─────────────────────────────────────────────────────────
+app.register(fastifyCookie);
 app.register(healthRoute);
 app.register(webhookRoute);
+app.register(registerDashboardRoutes);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const start = async () => {

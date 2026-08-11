@@ -102,8 +102,9 @@ export function formatComment(result: HybridScoringResult | PRScoringResult, prT
     ? "AI-Powered Deep Analysis Enabled"
     : "Rule Engine Scan (AI Provider Offline/Skipped)";
 
+  const dashboardUrl = process.env.DASHBOARD_URL || "https://ai-code-risk-monitor.onrender.com/dashboard";
   lines.push(
-    `*Powered by [AI Code Risk Monitor](https://github.com) • ${aiStatusText} • Scored ${totalFilesScored} file${totalFilesScored !== 1 ? "s" : ""}*`
+    `*Powered by [AI Code Risk Monitor](https://github.com) • ${aiStatusText} • [📊 View Web Dashboard](${dashboardUrl})*`
   );
 
   return lines.join("\n");
