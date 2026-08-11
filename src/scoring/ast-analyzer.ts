@@ -101,9 +101,45 @@ function extractImportedSymbols(line: string): string[] {
   return Array.from(new Set(symbols));
 }
 
+export function extractRemovedExports(patch: string): string[] {
+  if (!patch) return [];
+  const removedLines = extractLines(patch, "-");
+  const addedLines = extractLines(patch, "+");
+
+  const removedSymbols: string[] = [];
+  const addedSymbols: string[] = [];
+
+  for (const line of removedLines) {
+    const m = line.match(/^\s*export\s+(?:default\s+)?(?:function|const|class|type|interface|var|let)\s+([a-zA-Z0-9_$]+)/);
+    if (m && m[1]) removedSymbols.push(m[1]);
+  }
+
+  for (const line of addedLines) {
+    const m = line.match(/^\s*export\s+(?:default\s+)?(?:function|const|class|type|interface|var|let)\s+([a-zA-Z0-9_$]+)/);
+    if (m && m[1]) addedSymbols.push(m[1]);
+  }
+
+  const addedSet = new Set(addedSymbols);
+  return Array.from(new Set(removedSymbols)).filter((s) => !addedSet.has(s));
+}
+
 // ─── Detectors ────────────────────────────────────────────────────────────────
 
 export const AST_DETECTORS: ASTDetector[] = [
+  // ── Cross-file broken reference (weight: +45) ───────────────────────────────
+  {
+    signal: "cross_file_broken_reference",
+    reason: "Exported symbol was deleted but is still referenced in other PR files",
+    detect: ({ patch }: ScoringInput): boolean => {
+      if (!patch) return false;
+      const removedExports = extractRemovedExports(patch);
+      if (removedExports.length === 0) return false;
+
+      // In multi-file analysis, orchestrator checks if removed export is present in other PR files
+      return false;
+    },
+  },
+
   // ── Dangling import reference (weight: +40) ────────────────────────────────
   {
     signal: "dangling_import_reference",

@@ -107,7 +107,43 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
     status: f.status,
   }));
 
+  // Cross-File Symbol Matcher: Check if removed export in File A is still used in File B
+  const fileExportsMap = new Map<string, string[]>();
+  const truncatedFiles: string[] = [];
+
+  for (const f of scoringFiles) {
+    if (f.patch) {
+      const patchLines = f.patch.split("\n");
+      if (patchLines.length > 500 || f.patch.length > 30000) {
+        truncatedFiles.push(f.filePath);
+      }
+      const { extractRemovedExports } = await import("./scoring/ast-analyzer.js");
+      const removedExports = extractRemovedExports(f.patch);
+      if (removedExports.length > 0) {
+        fileExportsMap.set(f.filePath, removedExports);
+      }
+    }
+  }
+
   const ruleResult = scorePR(scoringFiles, allChangedPaths, config);
+
+  // Inject cross_file_broken_reference signal if removed export is found in another changed file
+  for (const [sourceFile, removedExports] of fileExportsMap.entries()) {
+    for (const exp of removedExports) {
+      const regex = new RegExp(`\\b${exp}\\b`);
+      for (const res of ruleResult.fileResults) {
+        if (res.filePath !== sourceFile) {
+          const targetPatch = scoringFiles.find((s) => s.filePath === res.filePath)?.patch ?? "";
+          if (regex.test(targetPatch)) {
+            res.score = Math.min(100, res.score + 45);
+            if (res.score >= 60) res.tier = "high";
+            else if (res.score >= 30) res.tier = "medium";
+            res.reasons.push(`Exported symbol '${exp}' removed in ${sourceFile} but still referenced (+45)`);
+          }
+        }
+      }
+    }
+  }
 
   // ── Step 5: Layer 2 Gemini AI Deep Analysis ──────────────────────────────
   console.log(`[orchestrator] Running Gemini AI Deep Analysis...`);
@@ -150,7 +186,7 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
   }
 
   // ── Step 8: Post comment + status check + auto-label ──────────────────────
-  const commentBody = formatComment(finalResult, prTitle);
+  const commentBody = formatComment(finalResult, prTitle, truncatedFiles);
   const statusPayload = formatStatusCheck(finalResult);
 
   await Promise.all([

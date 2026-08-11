@@ -26,7 +26,11 @@ const STATUS_STATE: Record<RiskTier, "success" | "failure" | "failure"> = {
 /**
  * Format the full PR comment markdown from hybrid scoring results.
  */
-export function formatComment(result: HybridScoringResult | PRScoringResult, prTitle: string): string {
+export function formatComment(
+  result: HybridScoringResult | PRScoringResult,
+  prTitle: string,
+  truncatedFiles: string[] = []
+): string {
   const { prTier, totalFilesScored } = result;
   const emoji = TIER_EMOJI[prTier];
   const label = TIER_LABEL[prTier];
@@ -37,8 +41,14 @@ export function formatComment(result: HybridScoringResult | PRScoringResult, prT
     "",
     `> **PR:** ${prTitle}`,
     `> **Files scored:** ${totalFilesScored} | **Highest risk tier:** ${emoji} ${label}`,
-    "",
   ];
+
+  if (truncatedFiles.length > 0) {
+    const formattedList = truncatedFiles.map((f) => `\`${f}\``).join(", ");
+    lines.push(`> ⚠️ **Notice:** The diff patch for ${formattedList} exceeded 500 lines and was truncated for AI audit. Extra manual review recommended.`);
+  }
+
+  lines.push("");
 
   // ── AI Summary Section ───────────────────────────────────────────────────
   if (hybridResult?.aiAnalysis?.summary) {
