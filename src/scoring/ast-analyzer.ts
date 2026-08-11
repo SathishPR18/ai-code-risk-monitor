@@ -63,9 +63,98 @@ const LANGUAGE_VALIDATION_PATTERNS: Record<string, RegExp> = {
   htm: /\s(required|pattern|minlength|maxlength)[\s=>]/i,
 };
 
+function extractImportedSymbols(line: string): string[] {
+  const symbols: string[] = [];
+  const trimmed = line.trim();
+
+  // Named imports: import { Header, Footer as MyFooter } from "..."
+  const namedMatch = trimmed.match(/\{([^}]+)\}/);
+  if (namedMatch) {
+    const rawNames = namedMatch[1].split(",");
+    for (const raw of rawNames) {
+      const parts = raw.trim().split(/\s+as\s+/i);
+      const name = (parts[1] || parts[0]).trim();
+      if (name && /^[a-zA-Z0-9_$]+$/.test(name)) {
+        symbols.push(name);
+      }
+    }
+  }
+
+  // Default import: import Header from "..."
+  const defaultMatch = trimmed.match(/import\s+([a-zA-Z0-9_$]+)\s+(from|,)/);
+  if (defaultMatch && defaultMatch[1] && defaultMatch[1] !== "type") {
+    symbols.push(defaultMatch[1].trim());
+  }
+
+  // Python: from module import Header, Footer
+  const pythonFromMatch = trimmed.match(/from\s+[\w.]+\s+import\s+([a-zA-Z0-9_$,\s]+)/);
+  if (pythonFromMatch) {
+    const names = pythonFromMatch[1].split(",");
+    for (const n of names) {
+      const clean = n.trim();
+      if (clean && /^[a-zA-Z0-9_$]+$/.test(clean)) {
+        symbols.push(clean);
+      }
+    }
+  }
+
+  return Array.from(new Set(symbols));
+}
+
 // ─── Detectors ────────────────────────────────────────────────────────────────
 
 export const AST_DETECTORS: ASTDetector[] = [
+  // ── Dangling import reference (weight: +40) ────────────────────────────────
+  {
+    signal: "dangling_import_reference",
+    reason: "Import statement removed while component/function is still referenced in code",
+    detect: ({ patch }: ScoringInput): boolean => {
+      if (!patch) return false;
+
+      const removedLines = extractLines(patch, "-");
+      const addedLines = extractLines(patch, "+");
+      const allLines = patch.split("\n");
+
+      const removedImportLines = removedLines.filter((l) =>
+        /^\s*(import|from)\s+/i.test(l) || /require\(/.test(l)
+      );
+      if (removedImportLines.length === 0) return false;
+
+      const addedImportLines = addedLines.filter((l) =>
+        /^\s*(import|from)\s+/i.test(l) || /require\(/.test(l)
+      );
+
+      const removedSymbols = new Set<string>();
+      removedImportLines.forEach((l) => {
+        extractImportedSymbols(l).forEach((s) => removedSymbols.add(s));
+      });
+
+      const addedSymbols = new Set<string>();
+      addedImportLines.forEach((l) => {
+        extractImportedSymbols(l).forEach((s) => addedSymbols.add(s));
+      });
+
+      const danglingSymbols = Array.from(removedSymbols).filter(
+        (s) => !addedSymbols.has(s)
+      );
+
+      if (danglingSymbols.length === 0) return false;
+
+      const nonImportPatchLines = allLines.filter(
+        (l) => !l.startsWith("-") && !/^\s*\+?\s*(import|from)\s+/i.test(l) && !/require\(/.test(l)
+      );
+
+      for (const symbol of danglingSymbols) {
+        const symbolRegex = new RegExp(`\\b${symbol}\\b`);
+        if (nonImportPatchLines.some((l) => symbolRegex.test(l))) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+  },
+
   // ── Removed validation (weight: +30) ──────────────────────────────────────
   {
     signal: "removed_validation",

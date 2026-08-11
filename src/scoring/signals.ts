@@ -11,7 +11,8 @@ export type SignalName =
   | "data_fetching_changed"
   | "new_env_var_no_example"
   | "no_test_changed"
-  | "pure_addition";
+  | "pure_addition"
+  | "dangling_import_reference";
 
 export interface Signal {
   name: SignalName;
