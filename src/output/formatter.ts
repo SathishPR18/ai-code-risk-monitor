@@ -25,8 +25,6 @@ const STATUS_STATE: Record<RiskTier, "success" | "failure" | "failure"> = {
 
 /**
  * Format the full PR comment markdown from hybrid scoring results.
- * Uses bold bullet lists instead of markdown pipe tables for better
- * email client rendering (Outlook, Gmail, Apple Mail).
  */
 export function formatComment(
   result: HybridScoringResult | PRScoringResult,
@@ -71,12 +69,12 @@ export function formatComment(
     lines.push("");
 
     if (logic.gaps && logic.gaps.length > 0) {
-      logic.gaps.forEach((gap, i) => {
-        lines.push(`**Gap ${i + 1}: \`${gap.affectedFile}\`**`);
-        lines.push(`- 🔍 **Issue:** ${gap.issue}`);
-        lines.push(`- 💡 **Fix:** ${gap.recommendation}`);
-        lines.push("");
+      lines.push("| Affected File | Issue / Gap Found | Recommended Fix |");
+      lines.push("|---|---|---|");
+      logic.gaps.forEach((gap) => {
+        lines.push(`| \`${gap.affectedFile}\` | ${gap.issue} | ${gap.recommendation} |`);
       });
+      lines.push("");
     }
   }
 
@@ -84,7 +82,7 @@ export function formatComment(
   if (result.highRiskFiles.length > 0) {
     lines.push("### 🔴 High Risk Files");
     lines.push("");
-    lines.push(...formatFileList(result.highRiskFiles));
+    lines.push(...formatFileTable(result.highRiskFiles));
     lines.push("");
   }
 
@@ -92,7 +90,7 @@ export function formatComment(
   if (result.mediumRiskFiles.length > 0) {
     lines.push("### 🟡 Medium Risk Files");
     lines.push("");
-    lines.push(...formatFileList(result.mediumRiskFiles));
+    lines.push(...formatFileTable(result.mediumRiskFiles));
     lines.push("");
   }
 
@@ -103,7 +101,7 @@ export function formatComment(
       `<summary>🟢 Low Risk Files (${result.lowRiskFiles.length})</summary>`
     );
     lines.push("");
-    lines.push(...formatFileList(result.lowRiskFiles));
+    lines.push(...formatFileTable(result.lowRiskFiles));
     lines.push("</details>");
     lines.push("");
   }
@@ -122,15 +120,18 @@ export function formatComment(
   return lines.join("\n");
 }
 
-/**
- * Format file risk results as bold bullet lists instead of pipe tables.
- * This renders cleanly in both GitHub PR comments AND email notification clients.
- */
-function formatFileList(files: ScoringResult[]): string[] {
-  const rows: string[] = [];
+function formatFileTable(files: ScoringResult[]): string[] {
+  const rows: string[] = [
+    "| File | Score | Tier | Risk Signals & AI Insights |",
+    "|---|---|---|---|",
+  ];
 
   for (const file of files) {
     const emoji = TIER_EMOJI[file.tier];
+    const reasonsText =
+      file.reasons.length > 0
+        ? file.reasons.join("<br>")
+        : "_No specific signals_";
 
     // Truncate long file paths for readability
     const displayPath =
@@ -138,17 +139,9 @@ function formatFileList(files: ScoringResult[]): string[] {
         ? `...${file.filePath.slice(-57)}`
         : file.filePath;
 
-    rows.push(`**\`${displayPath}\`** — Score: ${file.score}/100 ${emoji} ${TIER_LABEL[file.tier]}`);
-
-    if (file.reasons.length > 0) {
-      file.reasons.forEach((reason) => {
-        rows.push(`  - ${reason}`);
-      });
-    } else {
-      rows.push(`  - _No specific signals detected_`);
-    }
-
-    rows.push("");
+    rows.push(
+      `| \`${displayPath}\` | ${file.score} | ${emoji} ${TIER_LABEL[file.tier]} | ${reasonsText} |`
+    );
   }
 
   return rows;
