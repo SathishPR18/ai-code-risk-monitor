@@ -543,8 +543,37 @@ export function renderDashboardView(session: UserSession): string {
       select.innerHTML = '<option value="all">All Repositories</option>' + 
         data.availableRepos.map(r => \`<option value="\${r}">\${r}</option>\`).join('');
 
+      // Wire filter listeners
+      document.getElementById('repoFilter').addEventListener('change', filterAndRender);
+      document.getElementById('searchInput').addEventListener('input', filterAndRender);
+
       renderTable(data.auditLogs);
       renderHotspots(data.hotspots);
+    }
+
+    function filterAndRender() {
+      if (!globalStatsData) return;
+      const selectedRepo = document.getElementById('repoFilter').value;
+      const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+
+      let filteredLogs = globalStatsData.auditLogs;
+      if (selectedRepo !== 'all') {
+        filteredLogs = filteredLogs.filter(log => log.repoFullName === selectedRepo);
+      }
+      if (searchQuery) {
+        filteredLogs = filteredLogs.filter(log => 
+          log.prTitle.toLowerCase().includes(searchQuery) || 
+          ('#' + log.prNumber).includes(searchQuery) ||
+          log.repoFullName.toLowerCase().includes(searchQuery)
+        );
+      }
+
+      document.getElementById('statTotalPRs').textContent = filteredLogs.length;
+      document.getElementById('statHighRisk').textContent = filteredLogs.filter(l => l.tier === 'high').length;
+      document.getElementById('statMediumRisk').textContent = filteredLogs.filter(l => l.tier === 'medium').length;
+      document.getElementById('statLowRisk').textContent = filteredLogs.filter(l => l.tier === 'low').length;
+
+      renderTable(filteredLogs);
     }
 
     function renderTable(logs) {

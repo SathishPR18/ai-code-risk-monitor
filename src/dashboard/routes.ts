@@ -219,6 +219,8 @@ export async function registerDashboardRoutes(fastify: FastifyInstance): Promise
         reasons: [],
       }));
 
+      const connectedUserRepos = Array.from(new Set(allowedReposInDb.map((r) => r.githubRepoFullName)));
+
       const result: DashboardStatsResult = {
         totalPRsScored,
         highRiskCount,
@@ -227,7 +229,7 @@ export async function registerDashboardRoutes(fastify: FastifyInstance): Promise
         aiCoveragePercentage,
         hotspots,
         auditLogs,
-        availableRepos: userRepos,
+        availableRepos: connectedUserRepos,
       };
 
       return reply.send(result);
