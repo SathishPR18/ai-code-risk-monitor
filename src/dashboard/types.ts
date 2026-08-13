@@ -29,6 +29,8 @@ export interface DashboardStatsResult {
   mediumRiskCount: number;
   lowRiskCount: number;
   aiCoveragePercentage: number;
+  healthScore: number; // 0-100 Codebase Health Score
+  healthGrade: string; // e.g. "A+", "A", "B", "C", "F"
   hotspots: RiskyHotspot[];
   auditLogs: PRAuditItem[];
   availableRepos: string[];

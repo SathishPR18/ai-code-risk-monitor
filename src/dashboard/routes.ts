@@ -123,6 +123,8 @@ export async function registerDashboardRoutes(fastify: FastifyInstance): Promise
           mediumRiskCount: 0,
           lowRiskCount: 0,
           aiCoveragePercentage: 100,
+          healthScore: 100,
+          healthGrade: "A+",
           hotspots: [],
           auditLogs: [],
           availableRepos: userRepos,
@@ -221,12 +223,27 @@ export async function registerDashboardRoutes(fastify: FastifyInstance): Promise
 
       const connectedUserRepos = Array.from(new Set(allowedReposInDb.map((r) => r.githubRepoFullName)));
 
+      // Calculate Codebase Health Score (100 - average PR risk score)
+      const avgPRScore =
+        totalPRsScored > 0
+          ? auditLogs.reduce((sum, item) => sum + item.score, 0) / totalPRsScored
+          : 0;
+      const healthScore = Math.max(0, Math.min(100, Math.round(100 - avgPRScore)));
+
+      let healthGrade = "A+";
+      if (healthScore < 60) healthGrade = "F";
+      else if (healthScore < 70) healthGrade = "C";
+      else if (healthScore < 80) healthGrade = "B";
+      else if (healthScore < 90) healthGrade = "A";
+
       const result: DashboardStatsResult = {
         totalPRsScored,
         highRiskCount,
         mediumRiskCount,
         lowRiskCount,
         aiCoveragePercentage,
+        healthScore,
+        healthGrade,
         hotspots,
         auditLogs,
         availableRepos: connectedUserRepos,

@@ -35,6 +35,7 @@ describe("Dashboard Auth & Views", () => {
 
     expect(html).toContain("🛡️ AI Code Risk Monitor");
     expect(html).toContain("SathishPR18");
-    expect(html).toContain("PR Risk Audit Logs");
+    expect(html).toContain("PR Risk Audit Ledger");
+    expect(html).toContain("exportCSV()");
   });
 });
