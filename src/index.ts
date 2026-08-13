@@ -26,6 +26,8 @@ const app = Fastify({
 
 import fastifyCookie from "@fastify/cookie";
 import { registerDashboardRoutes } from "./dashboard/routes.js";
+import { startQueueWorker, stopQueueWorker } from "./queue/worker.js";
+import { closeQueue } from "./queue/producer.js";
 
 // ─── Routes & Plugins ─────────────────────────────────────────────────────────
 app.register(fastifyCookie);
@@ -38,6 +40,8 @@ const start = async () => {
   try {
     await app.listen({ port: PORT, host: "0.0.0.0" });
     app.log.info(`AI Code Risk Monitor listening on port ${PORT}`);
+    // Start BullMQ worker to process PR scan jobs from Redis queue
+    startQueueWorker();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
@@ -47,6 +51,8 @@ const start = async () => {
 // ─── Graceful Shutdown ────────────────────────────────────────────────────────
 const shutdown = async (signal: string) => {
   app.log.info(`Received ${signal}, shutting down gracefully...`);
+  await stopQueueWorker();
+  await closeQueue();
   await app.close();
   process.exit(0);
 };

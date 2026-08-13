@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { createHmac, timingSafeEqual } from "crypto";
 import { orchestrate } from "../orchestrator.js";
+import { enqueuePRScan } from "../queue/producer.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,11 +137,11 @@ export async function webhookRoute(app: FastifyInstance) {
       // ── 4. Respond immediately (GitHub expects < 10s response) ────────────
       reply.status(202).send({ message: "Accepted" });
 
-      // ── 5. Run orchestration asynchronously ───────────────────────────────
+      // ── 5. Enqueue PR scan job into Redis queue (with direct fallback) ────
       const orgName =
         payload.organization?.login ?? payload.repository.owner.login;
 
-      orchestrate({
+      const jobData = {
         installationId: payload.installation.id,
         owner: payload.repository.owner.login,
         repo: payload.repository.name,
@@ -150,11 +151,21 @@ export async function webhookRoute(app: FastifyInstance) {
         prDescription: payload.pull_request.body ?? "",
         headSha: payload.pull_request.head.sha,
         orgName,
-      }).catch((err: unknown) => {
-        request.log.error(
-          { err, deliveryId },
-          "Orchestration failed for PR event"
+        deliveryId,
+      };
+
+      // Try queue first — fall back to direct orchestration if Redis unavailable
+      enqueuePRScan(jobData).catch((queueErr: unknown) => {
+        request.log.warn(
+          { queueErr },
+          "Redis queue unavailable — falling back to direct orchestration"
         );
+        orchestrate(jobData).catch((err: unknown) => {
+          request.log.error(
+            { err, deliveryId },
+            "Orchestration failed for PR event"
+          );
+        });
       });
     };
 
