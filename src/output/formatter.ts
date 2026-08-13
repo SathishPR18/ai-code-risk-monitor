@@ -25,6 +25,7 @@ const STATUS_STATE: Record<RiskTier, "success" | "failure" | "failure"> = {
 
 /**
  * Format the full PR comment markdown from hybrid scoring results.
+ * Clean, professional enterprise layout without distracting emojis.
  */
 export function formatComment(
   result: HybridScoringResult | PRScoringResult,
@@ -45,25 +46,24 @@ export function formatComment(
 
   if (truncatedFiles.length > 0) {
     const formattedList = truncatedFiles.map((f) => `\`${f}\``).join(", ");
-    lines.push(`> ⚠️ **Notice:** The diff patch for ${formattedList} exceeded 500 lines and was truncated for AI audit. Extra manual review recommended.`);
+    lines.push(`> **Notice:** The diff patch for ${formattedList} exceeded 500 lines and was truncated for AI audit. Extra manual review recommended.`);
   }
 
   lines.push("");
 
   // ── AI Summary Section ───────────────────────────────────────────────────
   if (hybridResult?.aiAnalysis?.summary) {
-    lines.push(`> 🤖 **AI Summary:** ${hybridResult.aiAnalysis.summary}`);
-    lines.push(`> ⚠️ *This is an AI-based summary. Do not trust this fully; it is for validation purposes only. Please check carefully if you get a Red (High) risk tier.*`);
+    lines.push(`> **AI Summary:** ${hybridResult.aiAnalysis.summary}`);
+    lines.push(`> *Note: This is an AI-based summary provided for code review assistance.*`);
     lines.push("");
   }
 
   // ── PR Intent & Implementation Audit Section ─────────────────────────────
   if (hybridResult?.aiAnalysis?.intentAnalysis) {
     const logic = hybridResult.aiAnalysis.intentAnalysis;
-    const statusEmoji = logic.hasMismatch ? "⚠️" : "✅";
-    const statusText = logic.hasMismatch ? "**MISMATCH / GAP DETECTED**" : "Intent Matches Implementation";
+    const statusText = logic.hasMismatch ? "MISMATCH / GAP DETECTED" : "Intent Matches Implementation";
 
-    lines.push(`### 🤖 PR Intent & Implementation Audit (${statusEmoji} ${statusText})`);
+    lines.push(`### PR Intent & Implementation Audit (${statusText})`);
     lines.push("");
     lines.push(`> ${logic.explanation}`);
     lines.push("");
@@ -114,7 +114,7 @@ export function formatComment(
 
   const dashboardUrl = process.env.DASHBOARD_URL || "https://ai-code-risk-monitor.onrender.com/dashboard";
   lines.push(
-    `*Powered by [AI Code Risk Monitor](https://github.com) • ${aiStatusText} • [📊 View Web Dashboard](${dashboardUrl})*`
+    `*Powered by [AI Code Risk Monitor](https://github.com) • ${aiStatusText} • [View Web Dashboard](${dashboardUrl})*`
   );
 
   return lines.join("\n");

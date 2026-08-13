@@ -54,7 +54,7 @@ export function combineScores(
     if (aiFileMatch.findings && aiFileMatch.findings.length > 0) {
       aiFileMatch.findings.forEach((finding) => {
         if (!mergedReasons.some((r) => r.includes(finding))) {
-          mergedReasons.push(`🤖 AI Insight: ${finding}`);
+          mergedReasons.push(`AI Insight: ${finding}`);
         }
       });
     }
