@@ -2,6 +2,7 @@
   "name": "ai-code-risk-monitor",
   "version": "1.0.0",
   "description": "GitHub App that scores PRs for risk on Next.js/TypeScript repos",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
