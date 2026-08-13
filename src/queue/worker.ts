@@ -1,11 +1,8 @@
 import { Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
 import { orchestrate } from "../orchestrator.js";
+import { isRedisConfigured } from "./producer.js";
 import type { PRScanJobData } from "./types.js";
-
-// ─── Redis Connection ──────────────────────────────────────────────────────────
-
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
 let workerInstance: Worker<PRScanJobData> | null = null;
 
@@ -43,11 +40,19 @@ async function processPRScanJob(job: Job<PRScanJobData>): Promise<void> {
 /**
  * Starts the BullMQ worker that consumes PR scan jobs from Redis queue.
  * Processes ONE job at a time (concurrency: 1) to avoid Gemini AI rate limits.
+ * Skips silently if REDIS_URL is not configured (falls back to direct orchestration).
  */
 export function startQueueWorker(): void {
   if (workerInstance) return; // Already running
 
-  const redisConnection = new IORedis(REDIS_URL, {
+  if (!isRedisConfigured()) {
+    console.log(
+      "[Queue Worker] REDIS_URL not configured — queue disabled, using direct orchestration fallback."
+    );
+    return;
+  }
+
+  const redisConnection = new IORedis(process.env.REDIS_URL!, {
     maxRetriesPerRequest: null, // Required by BullMQ
   });
 

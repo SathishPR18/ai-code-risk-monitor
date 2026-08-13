@@ -4,7 +4,15 @@ import type { PRScanJobData } from "./types.js";
 
 // ─── Redis Connection ──────────────────────────────────────────────────────────
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_URL = process.env.REDIS_URL || "";
+
+/**
+ * Returns true only when a real external Redis URL is configured.
+ * Prevents connecting to localhost on Render where Redis doesn't exist.
+ */
+export function isRedisConfigured(): boolean {
+  return !!REDIS_URL && !REDIS_URL.includes("localhost") && !REDIS_URL.includes("127.0.0.1");
+}
 
 // Shared Redis connection for the producer (reused across enqueue calls)
 let redisConnection: IORedis | null = null;
@@ -14,6 +22,8 @@ function getRedisConnection(): IORedis {
   if (!redisConnection) {
     redisConnection = new IORedis(REDIS_URL, {
       maxRetriesPerRequest: null, // Required by BullMQ
+      enableOfflineQueue: false,   // Fail fast instead of queueing commands when disconnected
+      lazyConnect: true,
     });
     redisConnection.on("error", (err) => {
       console.error("[Queue Producer] Redis connection error:", err.message);
@@ -45,8 +55,13 @@ function getPRScanQueue(): Queue<PRScanJobData> {
 /**
  * Adds a PR scan job to the Redis queue.
  * Returns immediately (< 5ms) so the webhook handler can respond fast.
+ * Throws if Redis is not configured — caller should fall back to direct orchestration.
  */
 export async function enqueuePRScan(data: PRScanJobData): Promise<void> {
+  if (!isRedisConfigured()) {
+    throw new Error("Redis not configured — REDIS_URL is not set or is localhost");
+  }
+
   try {
     const queue = getPRScanQueue();
     const jobId = `pr-${data.repoFullName}-${data.prNumber}-${data.headSha.slice(0, 8)}`;
