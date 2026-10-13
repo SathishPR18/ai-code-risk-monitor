@@ -58,37 +58,48 @@ export async function analyzePrWithGemini(
     const ai = new GoogleGenAI({ apiKey });
     const userPrompt = buildUserPrompt(input);
 
-    // Enforce 5-second timeout to prevent slowing down GitHub webhook response pipeline
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
     const candidateModels = [
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
       "gemini-flash-latest",
-      "gemini-flash-lite-latest",
     ];
-    let rawResponseText: string | null = null;
 
-    for (const model of candidateModels) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: userPrompt,
-          config: {
-            systemInstruction: SYSTEM_SECURITY_PROMPT,
-            responseMimeType: "application/json",
-            temperature: 0.1,
-          },
-        });
-        if (response.text) {
-          rawResponseText = response.text;
-          break;
+    // Enforce guaranteed 5-second timeout via Promise.race
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<string | null>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        reject(new Error("Gemini API call timed out after 5000ms"));
+      }, 5000);
+    });
+
+    const callApi = async (): Promise<string | null> => {
+      for (const model of candidateModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: userPrompt,
+            config: {
+              systemInstruction: SYSTEM_SECURITY_PROMPT,
+              responseMimeType: "application/json",
+              temperature: 0.1,
+            },
+          });
+          if (response.text) {
+            return response.text;
+          }
+        } catch (modelErr) {
+          console.warn(`[gemini-client] Model ${model} failed, trying next candidate...`, (modelErr as Error).message);
         }
-      } catch (modelErr) {
-        console.warn(`[gemini-client] Model ${model} failed, trying next candidate...`, (modelErr as Error).message);
       }
-    }
+      return null;
+    };
 
-    clearTimeout(timeoutId);
+    let rawResponseText: string | null = null;
+    try {
+      rawResponseText = await Promise.race([callApi(), timeoutPromise]);
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
 
     if (!rawResponseText) {
       console.warn("[gemini-client] All Gemini candidate models failed or returned empty text");

@@ -1,6 +1,33 @@
 import type { PathDetector, ScoringInput } from "./signals.js";
 
 /**
+ * Returns true if a patch ONLY contains comment changes, empty lines, or whitespace changes.
+ * Used to avoid triggering false alarms on doc/comment touchups in critical files.
+ */
+export function isCommentOrWhitespaceOnly(patch: string): boolean {
+  if (!patch) return false;
+  const changedLines = patch
+    .split("\n")
+    .filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"));
+
+  if (changedLines.length === 0) return true;
+
+  return changedLines.every((line) => {
+    const content = line.slice(1).trim();
+    if (content === "") return true; // empty line / whitespace
+    // JS/TS/Java/PHP single-line comment: //
+    if (content.startsWith("//")) return true;
+    // Multi-line comment markers: /*, *, */
+    if (content.startsWith("/*") || content.startsWith("*") || content.endsWith("*/")) return true;
+    // Python/Shell comment: #
+    if (content.startsWith("#")) return true;
+    // HTML/XML comment: <!--
+    if (content.startsWith("<!--") || content.startsWith("-->")) return true;
+    return false;
+  });
+}
+
+/**
  * Layer 1 signal detectors — path/pattern matching only.
  * Fast, no AST parsing. Runs on every file.
  *
@@ -12,10 +39,14 @@ export const PATH_DETECTORS: PathDetector[] = [
   {
     signal: "auth_config_changed",
     reason: "Auth config changed",
-    detect: ({ filePath }: ScoringInput): boolean => {
-      return /next-?auth|auth\.(config|options)\.(ts|js)|session|jwt\.config/i.test(
+    detect: ({ filePath, patch }: ScoringInput): boolean => {
+      const isAuthFile = /next-?auth|auth\.(config|options)\.(ts|js)|session|jwt\.config/i.test(
         filePath
       );
+      if (!isAuthFile) return false;
+      // Suppress false positive if patch is present and contains only comments/whitespace
+      if (patch && patch.trim().length > 0 && isCommentOrWhitespaceOnly(patch)) return false;
+      return true;
     },
   },
 
@@ -23,8 +54,12 @@ export const PATH_DETECTORS: PathDetector[] = [
   {
     signal: "middleware_changed",
     reason: "Middleware changed (runs on every matching request)",
-    detect: ({ filePath }: ScoringInput): boolean => {
-      return /^(src\/)?middleware\.(ts|js)$/.test(filePath);
+    detect: ({ filePath, patch }: ScoringInput): boolean => {
+      const isMiddleware = /^(src\/)?middleware\.(ts|js)$/.test(filePath);
+      if (!isMiddleware) return false;
+      // Suppress false positive if patch is present and contains only comments/whitespace
+      if (patch && patch.trim().length > 0 && isCommentOrWhitespaceOnly(patch)) return false;
+      return true;
     },
   },
 
@@ -32,12 +67,15 @@ export const PATH_DETECTORS: PathDetector[] = [
   {
     signal: "api_route_changed",
     reason: "API route changed",
-    detect: ({ filePath }: ScoringInput): boolean => {
-      return (
+    detect: ({ filePath, patch }: ScoringInput): boolean => {
+      const isApiRoute =
         /^(src\/)?(app|pages)\/api\/.+\.(ts|js|tsx|jsx)$/.test(filePath) ||
         // App router route handlers
-        /^(src\/)?app\/.+\/route\.(ts|js)$/.test(filePath)
-      );
+        /^(src\/)?app\/.+\/route\.(ts|js)$/.test(filePath);
+      if (!isApiRoute) return false;
+      // Suppress false positive if patch is present and contains only comments/whitespace
+      if (patch && patch.trim().length > 0 && isCommentOrWhitespaceOnly(patch)) return false;
+      return true;
     },
   },
 
@@ -80,8 +118,15 @@ export const PATH_DETECTORS: PathDetector[] = [
     signal: "no_test_changed",
     reason: "No test file changed in this PR",
     detect: ({ allChangedPaths }: ScoringInput): boolean => {
+      // Only penalize if the PR actually modifies at least one executable code/template file
+      const hasExecutableCodeFiles = allChangedPaths.some((p) =>
+        /\.(ts|tsx|js|jsx|py|go|java|php|rb|rs|cs|c|cpp|html|htm)$/i.test(p) &&
+        !/\.(test|spec)\.(ts|js|tsx|jsx|py|go|java|php)$/i.test(p)
+      );
+      if (!hasExecutableCodeFiles) return false;
+
       return !allChangedPaths.some((p) =>
-        /\.(test|spec)\.(ts|js|tsx|jsx)$/.test(p)
+        /\.(test|spec)\.(ts|js|tsx|jsx|py|go|java|php)$/i.test(p)
       );
     },
   },

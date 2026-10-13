@@ -127,23 +127,53 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
 
   const ruleResult = scorePR(scoringFiles, allChangedPaths, config);
 
-  // Inject cross_file_broken_reference signal if removed export is found in another changed file
+  // Inject cross_file_broken_reference signal if removed export is found in active lines of another changed file
   for (const [sourceFile, removedExports] of fileExportsMap.entries()) {
     for (const exp of removedExports) {
       const regex = new RegExp(`\\b${exp}\\b`);
       for (const res of ruleResult.fileResults) {
         if (res.filePath !== sourceFile) {
           const targetPatch = scoringFiles.find((s) => s.filePath === res.filePath)?.patch ?? "";
-          if (regex.test(targetPatch)) {
+          // Only check ACTIVE/ADDED lines (exclude deleted '-' lines and comment lines)
+          const activeTargetLines = targetPatch
+            .split("\n")
+            .filter((l) => !l.startsWith("-") && !l.startsWith("@@") && !l.startsWith("---") && !l.startsWith("+++"))
+            .map((l) => (l.startsWith("+") ? l.slice(1) : l))
+            .filter((l) => {
+              const trimmed = l.trim();
+              return !trimmed.startsWith("//") && !trimmed.startsWith("#") && !trimmed.startsWith("*");
+            });
+
+          const isStillReferenced = activeTargetLines.some((line) => regex.test(line));
+          if (isStillReferenced) {
             res.score = Math.min(100, res.score + 45);
             if (res.score >= 60) res.tier = "high";
             else if (res.score >= 30) res.tier = "medium";
             res.reasons.push(`Exported symbol '${exp}' removed in ${sourceFile} but still referenced (+45)`);
+
+            // Also attribute the breaking change to the source file that deleted the export
+            const sourceRes = ruleResult.fileResults.find((r) => r.filePath === sourceFile);
+            if (sourceRes && !sourceRes.reasons.some((r) => r.includes(`Exported symbol '${exp}' deleted`))) {
+              sourceRes.score = Math.min(100, sourceRes.score + 45);
+              if (sourceRes.score >= 60) sourceRes.tier = "high";
+              else if (sourceRes.score >= 30) sourceRes.tier = "medium";
+              sourceRes.reasons.push(`Exported symbol '${exp}' deleted while still in active use by ${res.filePath} (+45)`);
+            }
           }
         }
       }
     }
   }
+
+  // Recalculate rollup PR tiers after cross-file adjustments
+  ruleResult.prTier = ruleResult.fileResults.some((r) => r.tier === "high")
+    ? "high"
+    : ruleResult.fileResults.some((r) => r.tier === "medium")
+    ? "medium"
+    : "low";
+  ruleResult.highRiskFiles = ruleResult.fileResults.filter((r) => r.tier === "high");
+  ruleResult.mediumRiskFiles = ruleResult.fileResults.filter((r) => r.tier === "medium");
+  ruleResult.lowRiskFiles = ruleResult.fileResults.filter((r) => r.tier === "low");
 
   // ── Step 5: Layer 2 Gemini AI Deep Analysis ──────────────────────────────
   console.log(`[orchestrator] Running Gemini AI Deep Analysis...`);
@@ -151,6 +181,12 @@ export async function orchestrate(input: OrchestrateInput): Promise<void> {
     prTitle,
     prDescription,
     changedFiles: scoringFiles,
+    layer1Findings: ruleResult.fileResults.map((r) => ({
+      filePath: r.filePath,
+      score: r.score,
+      tier: r.tier,
+      reasons: r.reasons,
+    })),
   });
 
   // ── Step 6: Combine Layer 1 & Layer 2 Scores ─────────────────────────────

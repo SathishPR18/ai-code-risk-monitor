@@ -176,9 +176,19 @@ export const AST_DETECTORS: ASTDetector[] = [
 
       if (danglingSymbols.length === 0) return false;
 
-      const nonImportPatchLines = allLines.filter(
-        (l) => !l.startsWith("-") && !/^\s*\+?\s*(import|from)\s+/i.test(l) && !/require\(/.test(l)
-      );
+      const stripComment = (line: string): string => {
+        let content = line.startsWith("+") ? line.slice(1) : line;
+        content = content.replace(/\/\/.*$/, "").replace(/#.*$/, "");
+        content = content.replace(/\/\*.*?\*\//g, "");
+        return content;
+      };
+
+      const nonImportPatchLines = allLines
+        .filter(
+          (l) => !l.startsWith("-") && !/^\s*\+?\s*(import|from)\s+/i.test(l) && !/require\(/.test(l)
+        )
+        .map(stripComment)
+        .filter((l) => l.trim().length > 0 && !l.trim().startsWith("*"));
 
       for (const symbol of danglingSymbols) {
         const symbolRegex = new RegExp(`\\b${symbol}\\b`);

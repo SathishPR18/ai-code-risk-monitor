@@ -401,4 +401,35 @@ describe("scorePR — PR-level rollup", () => {
     expect(result.totalFilesScored).toBe(3);
     expect(result.highRiskFiles.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("does NOT flag auth_config_changed or middleware_changed when changes are comment-only", () => {
+    const authResult = scoreFile(
+      makeInput({
+        filePath: "auth.config.ts",
+        patch: `@@ -1,3 +1,3 @@\n-// old auth comment\n+// updated auth comment`,
+        allChangedPaths: ["auth.config.ts", "tests/auth.test.ts"],
+      })
+    );
+    expect(authResult.reasons.some((r) => r.includes("Auth config changed"))).toBe(false);
+
+    const mwResult = scoreFile(
+      makeInput({
+        filePath: "middleware.ts",
+        patch: `@@ -5,2 +5,2 @@\n-/* todo: review */\n+/* reviewed */`,
+        allChangedPaths: ["middleware.ts", "tests/mw.test.ts"],
+      })
+    );
+    expect(mwResult.reasons.some((r) => r.includes("Middleware changed"))).toBe(false);
+  });
+
+  it("does NOT trigger no_test_changed when PR contains zero executable code files", () => {
+    const docResult = scoreFile(
+      makeInput({
+        filePath: "README.md",
+        patch: `@@ -1,2 +1,3 @@\n+# New Documentation`,
+        allChangedPaths: ["README.md", "docs/guide.md", "images/logo.png"],
+      })
+    );
+    expect(docResult.reasons.some((r) => r.includes("No test file changed"))).toBe(false);
+  });
 });

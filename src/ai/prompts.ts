@@ -3,6 +3,13 @@
  * Enforces XML boundary tags to defend against prompt injection attacks.
  */
 
+export interface Layer1RuleFinding {
+  filePath: string;
+  score: number;
+  tier: string;
+  reasons: string[];
+}
+
 export interface AiAnalysisPromptInput {
   prTitle: string;
   prDescription: string;
@@ -10,6 +17,7 @@ export interface AiAnalysisPromptInput {
     filePath: string;
     patch: string;
   }>;
+  layer1Findings?: Layer1RuleFinding[];
 }
 
 /**
@@ -106,12 +114,33 @@ ${truncated}
     })
     .join("\n\n");
 
+  let findingsBlock = "";
+  if (input.layer1Findings && input.layer1Findings.length > 0) {
+    const relevant = input.layer1Findings.filter((f) => f.reasons.length > 0);
+    if (relevant.length > 0) {
+      const lines = relevant
+        .map(
+          (f) =>
+            `- ${sanitizeInput(f.filePath)} (Score: ${f.score}, Tier: ${f.tier.toUpperCase()}): ${f.reasons.map((r) => sanitizeInput(r)).join(", ")}`
+        )
+        .join("\n");
+      findingsBlock = `
+<layer1_rule_findings>
+The static rule engine pre-screened these changes and flagged the following potential risk signals:
+${lines}
+
+Your task: Specifically audit these flagged signals in your analysis. Verify whether they represent true security bugs / regressions or safe / intentional updates.
+</layer1_rule_findings>
+`;
+    }
+  }
+
   return `
 <untrusted_pr_metadata>
 <title>${sanitizedTitle}</title>
 <description>${sanitizedDesc}</description>
 </untrusted_pr_metadata>
-
+${findingsBlock}
 <untrusted_diffs>
 ${diffBlocks}
 </untrusted_diffs>

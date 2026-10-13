@@ -81,4 +81,27 @@ describe("AST Detector — dangling_import_reference", () => {
 
     expect(danglingDetector.detect(input)).toBe(false);
   });
+
+  it("does NOT trigger when removed symbol only appears in a code comment", () => {
+    const patch = `
+@@ -1,5 +1,4 @@
+-import Header from "@/components/Header";
+ import Footer from "@/components/Footer";
+
+ export default function Home() {
++  // Note: previously used Header component here
+   return <Footer />;
+ }
+`;
+
+    const input: ScoringInput = {
+      filePath: "app/dashboard/page.tsx",
+      patch,
+      status: "modified",
+      allChangedPaths: ["app/dashboard/page.tsx"],
+      config: DEFAULT_NEXTJS_CONFIG,
+    };
+
+    expect(danglingDetector.detect(input)).toBe(false);
+  });
 });
