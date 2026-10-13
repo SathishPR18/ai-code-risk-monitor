@@ -55,7 +55,9 @@ export const PATH_DETECTORS: PathDetector[] = [
     signal: "middleware_changed",
     reason: "Middleware changed (runs on every matching request)",
     detect: ({ filePath, patch }: ScoringInput): boolean => {
-      const isMiddleware = /^(src\/)?middleware\.(ts|js)$/.test(filePath);
+      const isMiddleware =
+        /^(src\/)?middleware\.(ts|js)$/.test(filePath) ||
+        /(Middlewares?\/.*\.cs|.*Middleware\.cs)$/i.test(filePath);
       if (!isMiddleware) return false;
       // Suppress false positive if patch is present and contains only comments/whitespace
       if (patch && patch.trim().length > 0 && isCommentOrWhitespaceOnly(patch)) return false;
@@ -84,14 +86,14 @@ export const PATH_DETECTORS: PathDetector[] = [
   // ── Data fetching (weight: +20) ───────────────────────────────────────────
   {
     signal: "data_fetching_changed",
-    reason: "Data-fetching function changed (getServerSideProps / generateStaticParams / dynamic fetch)",
+    reason: "Data-fetching function changed (getServerSideProps / generateStaticParams / dynamic fetch / DbContext)",
     detect: ({ patch }: ScoringInput): boolean => {
       if (!patch) return false;
       const changedLines = patch
         .split("\n")
         .filter((l) => l.startsWith("+") || l.startsWith("-"));
       return changedLines.some((line) =>
-        /getServerSideProps|getStaticProps|generateStaticParams|getInitialProps/i.test(
+        /getServerSideProps|getStaticProps|generateStaticParams|getInitialProps|DbContext|DbSet<|SaveChangesAsync|QueryAsync|ExecuteAsync/i.test(
           line
         )
       );

@@ -146,6 +146,7 @@ export const DEFAULT_CSHARP_CONFIG: RiskConfig = {
   stack: "csharp",
   weights: {
     auth_config_changed: 40,
+    middleware_changed: 35,
     api_route_changed: 30,
     removed_validation: 30,
     dangling_import_reference: 40,

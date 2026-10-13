@@ -485,4 +485,49 @@ describe("scoreFile — C# / .NET stack", () => {
       result.reasons.some((r) => r.includes("API route changed"))
     ).toBe(true);
   });
+
+  it("scores for ASP.NET Core when custom middleware is modified", () => {
+    const patch = [
+      "-    await _next(context);",
+      "+    if (context.User.Identity?.IsAuthenticated == true) await _next(context);",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "Middlewares/JwtMiddleware.cs",
+        patch,
+        allChangedPaths: ["Middlewares/JwtMiddleware.cs", "Tests/JwtMiddlewareTests.cs"],
+        config: DEFAULT_CSHARP_CONFIG,
+      })
+    );
+
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(35);
+    expect(
+      result.reasons.some((r) => r.includes("Middleware changed"))
+    ).toBe(true);
+  });
+
+  it("scores for .NET Core when EF Core data fetching is modified", () => {
+    const patch = [
+      "-    await _dbContext.SaveChangesAsync();",
+      "+    await _dbContext.Orders.AddAsync(order);",
+      "+    await _dbContext.SaveChangesAsync();",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "Services/OrderService.cs",
+        patch,
+        allChangedPaths: ["Services/OrderService.cs", "Tests/OrderTests.cs"],
+        config: DEFAULT_CSHARP_CONFIG,
+      })
+    );
+
+    expect(result.tier).toBe("low");
+    expect(result.score).toBe(20);
+    expect(
+      result.reasons.some((r) => r.includes("Data-fetching function changed"))
+    ).toBe(true);
+  });
 });
