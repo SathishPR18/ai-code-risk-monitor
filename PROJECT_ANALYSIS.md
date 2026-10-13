@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-**AI Code Risk Monitor** is an enterprise-grade GitHub App designed to act as an automated security gatekeeper and risk scoring monitor for Pull Requests across multiple technology stacks (Next.js/TypeScript, Node/Express, Python, Java, Go, and PHP).
+**AI Code Risk Monitor** is an enterprise-grade GitHub App designed to act as an automated security gatekeeper and risk scoring monitor for Pull Requests across multiple technology stacks (Next.js/TypeScript, Node/Express, Python, Java, Go, PHP, and C#/.NET).
 
 It implements a **Two-Layer Hybrid Scoring Pipeline**:
 1. **Layer 1 (Deterministic Rule & AST Engine)**: Fast, deterministic checks evaluating file paths, sensitive configuration changes, input validation removal (Zod, Pydantic, etc.), dangling imports, Server Action modifications, and cross-file broken export references.

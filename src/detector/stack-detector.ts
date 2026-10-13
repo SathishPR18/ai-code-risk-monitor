@@ -5,11 +5,12 @@ export type Stack =
   | "java"
   | "go"
   | "php"
+  | "csharp"
   | "generic";
 
 /**
  * Determine the stack from the list of changed files in the PR.
- * Supports Next.js, Node/Express, Python, Java, Go, PHP, or defaults to "generic".
+ * Supports Next.js, Node/Express, Python, Java, Go, PHP, C#/.NET, or defaults to "generic".
  */
 export function detectStackFromPaths(filePaths: string[]): Stack {
   const isNextJs = filePaths.some((p) =>
@@ -21,6 +22,11 @@ export function detectStackFromPaths(filePaths: string[]): Stack {
     /package\.json|server\.(js|ts)|app\.(js|ts)|routes\/|controllers\/|prisma\/|drizzle\//.test(p)
   );
   if (isNodeExpress) return "node_express";
+
+  const isCsharp = filePaths.some((p) =>
+    /\.(csproj|sln|fsproj)$|Program\.cs$|Startup\.cs$|appsettings(\..+)?\.json$|\.cs$/i.test(p)
+  );
+  if (isCsharp) return "csharp";
 
   const isPython = filePaths.some((p) =>
     /requirements\.txt|pyproject\.toml|Pipfile|\.py$/.test(p)

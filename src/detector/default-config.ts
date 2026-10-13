@@ -141,3 +141,34 @@ export const DEFAULT_PHP_CONFIG: RiskConfig = {
     high: { min: 60, max: 100 },
   },
 };
+
+export const DEFAULT_CSHARP_CONFIG: RiskConfig = {
+  stack: "csharp",
+  weights: {
+    auth_config_changed: 40,
+    api_route_changed: 30,
+    removed_validation: 30,
+    dangling_import_reference: 40,
+    cross_file_broken_reference: 45,
+    data_fetching_changed: 20,
+    new_env_var_no_example: 15,
+    no_test_changed: 15,
+    pure_addition: -20,
+  },
+  sensitivePaths: [
+    "Program.cs",
+    "Startup.cs",
+    "appsettings.json",
+    "appsettings.Development.json",
+    "appsettings.Production.json",
+    "launchSettings.json",
+    ".env",
+  ],
+  disabledSignals: [],
+  ignorePaths: [...DEFAULT_IGNORE_PATHS, "bin/**", "obj/**", "*.user", "*.suo"],
+  tiers: {
+    low: { min: 0, max: 29 },
+    medium: { min: 30, max: 59 },
+    high: { min: 60, max: 100 },
+  },
+};

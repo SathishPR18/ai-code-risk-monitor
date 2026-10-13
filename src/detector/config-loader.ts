@@ -5,6 +5,7 @@ import {
   DEFAULT_GO_CONFIG,
   DEFAULT_JAVA_CONFIG,
   DEFAULT_PHP_CONFIG,
+  DEFAULT_CSHARP_CONFIG,
 } from "./default-config.js";
 
 // ─── YAML parser (js-yaml) ────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ function getDefaultConfigForStack(stack: string): RiskConfig {
   if (normalized.includes("go")) return DEFAULT_GO_CONFIG;
   if (normalized.includes("java")) return DEFAULT_JAVA_CONFIG;
   if (normalized.includes("php")) return DEFAULT_PHP_CONFIG;
+  if (normalized.includes("csharp") || normalized.includes("dotnet") || normalized.includes("c#")) return DEFAULT_CSHARP_CONFIG;
   return DEFAULT_NEXTJS_CONFIG;
 }
 

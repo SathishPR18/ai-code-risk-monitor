@@ -1,6 +1,6 @@
 # AI Code Risk Monitor
 
-A GitHub App that automatically scores every PR on a Next.js/TypeScript repo for risk, posting a **comment** and **status check** directly on the PR.
+A GitHub App that automatically scores every PR on Next.js/TypeScript, Python, Java, Go, PHP, and C#/.NET repos for risk, posting a **comment** and **status check** directly on the PR.
 
 ---
 

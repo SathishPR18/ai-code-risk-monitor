@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { scoreFile, scorePR } from "../../src/scoring/engine.js";
-import { DEFAULT_NEXTJS_CONFIG } from "../../src/detector/default-config.js";
+import { DEFAULT_NEXTJS_CONFIG, DEFAULT_CSHARP_CONFIG } from "../../src/detector/default-config.js";
+import { detectStackFromPaths } from "../../src/detector/stack-detector.js";
 import type { ScoringInput } from "../../src/scoring/signals.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -431,5 +432,57 @@ describe("scorePR — PR-level rollup", () => {
       })
     );
     expect(docResult.reasons.some((r) => r.includes("No test file changed"))).toBe(false);
+  });
+});
+
+describe("scoreFile — C# / .NET stack", () => {
+  it("detects csharp stack from .csproj and .cs files", () => {
+    const stack = detectStackFromPaths(["src/Api/Api.csproj", "Controllers/UsersController.cs"]);
+    expect(stack).toBe("csharp");
+  });
+
+  it("scores for C# when DataAnnotations validation is removed", () => {
+    const patch = [
+      "-    [Required]",
+      "-    [StringLength(100, MinimumLength = 3)]",
+      "     public string Username { get; set; }",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "Models/UserDto.cs",
+        patch,
+        allChangedPaths: ["Models/UserDto.cs", "Tests/UserDtoTests.cs"],
+        config: DEFAULT_CSHARP_CONFIG,
+      })
+    );
+
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(30);
+    expect(
+      result.reasons.some((r) => r.includes("validation schema removed"))
+    ).toBe(true);
+  });
+
+  it("scores for C# when Controller API route is modified", () => {
+    const patch = [
+      "-    return Ok(oldData);",
+      "+    return Ok(newData);",
+    ].join("\n");
+
+    const result = scoreFile(
+      makeInput({
+        filePath: "Controllers/OrderController.cs",
+        patch,
+        allChangedPaths: ["Controllers/OrderController.cs", "Tests/OrderTests.cs"],
+        config: DEFAULT_CSHARP_CONFIG,
+      })
+    );
+
+    expect(result.tier).toBe("medium");
+    expect(result.score).toBe(30);
+    expect(
+      result.reasons.some((r) => r.includes("API route changed"))
+    ).toBe(true);
   });
 });

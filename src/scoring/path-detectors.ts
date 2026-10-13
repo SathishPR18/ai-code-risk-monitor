@@ -40,7 +40,7 @@ export const PATH_DETECTORS: PathDetector[] = [
     signal: "auth_config_changed",
     reason: "Auth config changed",
     detect: ({ filePath, patch }: ScoringInput): boolean => {
-      const isAuthFile = /next-?auth|auth\.(config|options)\.(ts|js)|session|jwt\.config/i.test(
+      const isAuthFile = /next-?auth|auth\.(config|options)\.(ts|js)|session|jwt\.config|SecurityConfig|auth\.py|auth\.go|config\/auth\.php|IdentityConfig|JwtSettings/i.test(
         filePath
       );
       if (!isAuthFile) return false;
@@ -71,7 +71,9 @@ export const PATH_DETECTORS: PathDetector[] = [
       const isApiRoute =
         /^(src\/)?(app|pages)\/api\/.+\.(ts|js|tsx|jsx)$/.test(filePath) ||
         // App router route handlers
-        /^(src\/)?app\/.+\/route\.(ts|js)$/.test(filePath);
+        /^(src\/)?app\/.+\/route\.(ts|js)$/.test(filePath) ||
+        // C# / ASP.NET Controllers and Endpoints
+        /(Controllers?\/.*Controller\.cs|Endpoints\/.*\.cs)$/i.test(filePath);
       if (!isApiRoute) return false;
       // Suppress false positive if patch is present and contains only comments/whitespace
       if (patch && patch.trim().length > 0 && isCommentOrWhitespaceOnly(patch)) return false;
@@ -121,12 +123,14 @@ export const PATH_DETECTORS: PathDetector[] = [
       // Only penalize if the PR actually modifies at least one executable code/template file
       const hasExecutableCodeFiles = allChangedPaths.some((p) =>
         /\.(ts|tsx|js|jsx|py|go|java|php|rb|rs|cs|c|cpp|html|htm)$/i.test(p) &&
-        !/\.(test|spec)\.(ts|js|tsx|jsx|py|go|java|php)$/i.test(p)
+        !/\.(test|spec)\.(ts|js|tsx|jsx|py|go|java|php|cs)$/i.test(p) &&
+        !/Tests?\.cs$/i.test(p)
       );
       if (!hasExecutableCodeFiles) return false;
 
       return !allChangedPaths.some((p) =>
-        /\.(test|spec)\.(ts|js|tsx|jsx|py|go|java|php)$/i.test(p)
+        /\.(test|spec)\.(ts|js|tsx|jsx|py|go|java|php|cs)$/i.test(p) ||
+        /Tests?\.cs$/i.test(p)
       );
     },
   },

@@ -58,6 +58,9 @@ const LANGUAGE_VALIDATION_PATTERNS: Record<string, RegExp> = {
   // PHP: Laravel request/validator, Symfony validator
   php: /\$request->validate\(|Validator::make\(|\$this->validate\(/i,
 
+  // C# / .NET: DataAnnotations ([Required], [StringLength], etc.) and FluentValidation
+  cs: /\[(Required|StringLength|Range|RegularExpression|EmailAddress|Compare|Phone|Url|CreditCard|MaxLength|MinLength)\]|RuleFor\(|AbstractValidator<|RuleForEach\(|\.NotEmpty\(|\.NotNull\(/i,
+
   // HTML: HTML5 form validation attributes
   html: /\s(required|pattern|minlength|maxlength)[\s=>]/i,
   htm: /\s(required|pattern|minlength|maxlength)[\s=>]/i,
@@ -98,6 +101,12 @@ function extractImportedSymbols(line: string): string[] {
     }
   }
 
+  // C#: using System.Collections.Generic; using Foo;
+  const csharpMatch = trimmed.match(/^using\s+(?:static\s+)?(?:[\w.]+\.)?([a-zA-Z0-9_$]+)\s*;/);
+  if (csharpMatch && csharpMatch[1]) {
+    symbols.push(csharpMatch[1]);
+  }
+
   return Array.from(new Set(symbols));
 }
 
@@ -112,11 +121,17 @@ export function extractRemovedExports(patch: string): string[] {
   for (const line of removedLines) {
     const m = line.match(/^\s*export\s+(?:default\s+)?(?:function|const|class|type|interface|var|let)\s+([a-zA-Z0-9_$]+)/);
     if (m && m[1]) removedSymbols.push(m[1]);
+
+    const csMatch = line.match(/^\s*public\s+(?:static\s+|async\s+|virtual\s+|override\s+|partial\s+)?(?:class|interface|record|struct|enum|void|[a-zA-Z0-9_<>\[\]]+)\s+([a-zA-Z0-9_]+)\s*(?:\(|<|\{|;)/);
+    if (csMatch && csMatch[1] && !["get", "set", "init"].includes(csMatch[1])) removedSymbols.push(csMatch[1]);
   }
 
   for (const line of addedLines) {
     const m = line.match(/^\s*export\s+(?:default\s+)?(?:function|const|class|type|interface|var|let)\s+([a-zA-Z0-9_$]+)/);
     if (m && m[1]) addedSymbols.push(m[1]);
+
+    const csMatch = line.match(/^\s*public\s+(?:static\s+|async\s+|virtual\s+|override\s+|partial\s+)?(?:class|interface|record|struct|enum|void|[a-zA-Z0-9_<>\[\]]+)\s+([a-zA-Z0-9_]+)\s*(?:\(|<|\{|;)/);
+    if (csMatch && csMatch[1] && !["get", "set", "init"].includes(csMatch[1])) addedSymbols.push(csMatch[1]);
   }
 
   const addedSet = new Set(addedSymbols);
